@@ -21,9 +21,17 @@ is medically appropriate for a given injury. It has no visibility into
 internal joint/disc mechanics — only external body position from a single
 camera. The exercise library is a small, human-curated reference list of
 commonly known PT exercises; the user selects which apply to them (ideally
-confirmed with their own PT/doctor). The system's job is limited to:
-tracking the user's own defined "correct form" reference and reporting
-consistency/drift against it over time.
+confirmed with their own PT/doctor).
+
+**Who defines "correct form" (resolves an ambiguity flagged in review):**
+each exercise ships with a default joint-angle range sourced from common,
+publicly documented PT guidance — labeled in the UI as a general reference,
+not a medical prescription. Before tracking begins, the user reviews and
+can adjust that range for their own body/mobility. Whatever value is
+active at tracking time — default or user-adjusted — is what the system
+treats as "correct form" for that person. The system never independently
+decides what's medically appropriate; it only measures consistency against
+whichever reference is currently active.
 
 ## Architecture
 
@@ -38,20 +46,34 @@ mobile browsers (Chrome/Safari); no login required for v1.
 
 1. **Exercise Library** — local JSON, hand-curated (post-spec, via web
    research) list of exercises. Each entry: name, reference
-   image/description, and the joint-angle rules that define "good form"
-   (e.g., squat: knee angle 80-100 degrees at bottom, hip-shoulder alignment
-   within a defined tolerance).
+   image/description, **required camera framing** (e.g., "side view" for
+   squat depth, "front view" for knee valgus — some rules are only
+   measurable from a specific angle, so this is not optional metadata), the
+   joint-angle rules that define "good form" (e.g., squat: knee angle
+   80-100 degrees at bottom, hip-shoulder alignment within a defined
+   tolerance) as a **default reference range**, and a per-user override
+   value the app persists once the user adjusts a range for their own body.
 
 2. **Pose Engine** — thin wrapper around MediaPipe Pose Landmarker
    (`@mediapipe/tasks-vision`). Per frame, emits both `landmarks`
-   (normalized 2D image coordinates, used for the live overlay) and
-   `worldLandmarks` (metric 3D coordinates, stored for post-session replay).
+   (normalized 2D image coordinates, used only for the live overlay
+   drawing) and `worldLandmarks` (metric 3D coordinates in meters, stored
+   for post-session replay).
 
 3. **Form Checker** — pure geometry functions. Computes joint angles each
-   frame from the landmarks, compares against the selected exercise's
-   defined ranges, outputs a pass/fail per rule per frame. Skips a rule for
-   a frame if that joint's `visibility` confidence is below a threshold,
-   rather than flagging a false fault.
+   frame **from `worldLandmarks`, not `landmarks`** — normalized 2D
+   coordinates distort badly with camera viewing angle and perspective
+   foreshortening (a true 90-degree knee angle can read as 60 or 120
+   degrees depending on phone placement), while metric 3D coordinates are
+   far more robust to viewpoint, even though they're still MediaPipe's own
+   depth estimate rather than ground truth. Angles are compared against the
+   selected exercise's active range (default or user-adjusted, per
+   Component 1), outputs a pass/fail per rule per frame. Skips a rule for a
+   frame if that joint's `visibility` confidence is below a threshold,
+   rather than flagging a false fault — and tracks **rule coverage**
+   (how many of an exercise's rules were actually evaluated vs. skipped for
+   low visibility) alongside the pass/fail result, so a session where a
+   rule was never visible doesn't silently read as a passing session.
 
 4. **Live Overlay Renderer** — draws the 2D skeleton plus red/green joint
    indicators directly on the camera canvas during the session.
@@ -59,18 +81,23 @@ mobile browsers (Chrome/Safari); no login required for v1.
 5. **Session Recorder** — logs per-frame angle data and rule pass/fail
    results to IndexedDB as the session runs.
 
-6. **Replay/Progress View** — post-session only. Reconstructs a 3D avatar
-   from stored `worldLandmarks` for reviewing individual reps, plus a
-   simple consistency chart across sessions (e.g., percentage of reps in
-   good form, trending over time).
+6. **Replay/Progress View** — post-session only. Renders a 3D stick-figure
+   skeleton replay directly from stored `worldLandmarks` point positions
+   (not a rigged/skinned avatar — that would require IK retargeting onto a
+   humanoid rig, a separate and much larger sub-project, out of scope here)
+   for reviewing individual reps, plus a simple consistency chart across
+   sessions that reports both pass rate and rule coverage (e.g., "82% good
+   form, 3 of 3 rules evaluated" vs. a session where a rule was skipped
+   most of the time).
 
 ## Data flow
 
-Camera -> Pose Engine (per frame) -> Form Checker (angles + pass/fail) ->
-simultaneously: Live Overlay (immediate render) + Session Recorder
-(IndexedDB write). After the session ends, the Replay/Progress View reads
-the stored session back and renders the 3D avatar plus the progress chart.
-No network round-trip at any point in this flow.
+Camera -> Pose Engine (per frame) -> Form Checker (computes angles from
+`worldLandmarks`, tracks pass/fail + rule coverage) -> simultaneously: Live
+Overlay (immediate render, from `landmarks`) + Session Recorder (batched
+IndexedDB write). After the session ends, the Replay/Progress View reads
+the stored session back and renders the 3D skeleton replay plus the
+progress chart. No network round-trip at any point in this flow.
 
 ## Error handling
 
@@ -82,13 +109,21 @@ No network round-trip at any point in this flow.
 - **Low-confidence landmarks** (`visibility` below threshold) — that joint's
   check is skipped for the frame instead of being flagged as a fault, so
   poor lighting doesn't produce false form-correction noise.
+- **IndexedDB write failure or unavailable storage** (e.g., Safari private
+  browsing, which restricts or clears IndexedDB): the app surfaces that
+  session history isn't being saved rather than silently losing it. Given
+  the tool's value is longitudinal consistency tracking, a silently-empty
+  history is a real failure, not a cosmetic one. Per-frame writes are
+  batched (not written on every single inference frame) so storage I/O
+  doesn't compete with the live inference/render loop on mobile.
 
 ## Testing
 
 The Form Checker's angle math (pure functions) gets unit tests: feed known
-synthetic joint coordinates in, confirm the angle calculation and pass/fail
-thresholds are correct. Camera capture and rendering are verified by hand in
-a real browser session, not automated.
+synthetic `worldLandmarks`-shaped coordinates (metric x/y/z) in, confirm the
+angle calculation, pass/fail thresholds, and rule-coverage tracking are
+correct. Camera capture and rendering are verified by hand in a real
+browser session, not automated.
 
 ## Deferred to later (explicitly out of scope for this spec)
 

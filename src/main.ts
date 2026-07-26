@@ -34,12 +34,31 @@ function buildRuleStats(frames: SessionFrameRecord[]) {
   return stats;
 }
 
+const capturedErrors: string[] = [];
+
 window.onerror = (message, _source, _lineno, _colno, error) => {
+  const text = `${message} ${error ?? ""}`;
+  capturedErrors.push(text);
   console.error("[pt-form-tracker] uncaught error:", message, error ?? "");
 };
 window.onunhandledrejection = (event) => {
+  capturedErrors.push(String(event.reason));
   console.error("[pt-form-tracker] unhandled rejection:", event.reason);
 };
+
+/** Dev-only: ships end-of-session diagnostics to the artifact-bridge Vite plugin. */
+async function postTestArtifact(payload: unknown): Promise<void> {
+  if (!import.meta.env.DEV) return;
+  try {
+    await fetch("/__test-artifact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch {
+    // Best-effort only; never block the session end flow on this.
+  }
+}
 
 async function main() {
   const exercise = exerciseLibrary["squat"];
@@ -109,7 +128,16 @@ async function main() {
     const frames = await store.getFramesForSession(sessionId);
     const summary = summarizeSession(frames);
     renderProgressSummary(progressContainer, summary);
-    console.table(buildRuleStats(frames));
+    const ruleStats = buildRuleStats(frames);
+    console.table(ruleStats);
+    await postTestArtifact({
+      timestamp: new Date().toISOString(),
+      exerciseId: exercise.id,
+      frameCount: frames.length,
+      summary,
+      ruleStats,
+      errors: capturedErrors
+    });
 
     const replay = new ReplayView(replayContainer);
     let i = 0;

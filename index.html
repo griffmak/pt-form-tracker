@@ -27,11 +27,22 @@
       #progress-container {
         font-size: 16px;
       }
+      #framing-instructions {
+        font-size: 15px;
+        font-weight: bold;
+        background: #fffae0;
+        border: 1px solid #ddd;
+        padding: 8px 12px;
+      }
     </style>
   </head>
   <body>
     <div id="app">
       <video id="camera-feed" autoplay playsinline muted style="display: none"></video>
+      <section>
+        <h2>Setup</h2>
+        <div id="framing-instructions"></div>
+      </section>
       <section>
         <h2>Live (press "e" to end session)</h2>
         <canvas id="overlay-canvas"></canvas>

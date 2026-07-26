@@ -67,6 +67,10 @@ async function main() {
   const ctx = canvas.getContext("2d")!;
   const replayContainer = document.getElementById("replay-container")!;
   const progressContainer = document.getElementById("progress-container")!;
+  const framingInstructions = document.getElementById("framing-instructions")!;
+
+  const framingLabel = exercise.requiredFraming === "side-view" ? "Stand side-on to the camera." : "Face the camera.";
+  framingInstructions.textContent = `${framingLabel} ${exercise.referenceDescription}`;
 
   let stream: MediaStream;
   try {

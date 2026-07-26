@@ -3,6 +3,8 @@ import { checkFrame, type PoseWorldLandmark } from "./form-checker/form-checker"
 import { drawOverlay } from "./render/live-overlay";
 import { ReplayView } from "./render/replay-view";
 import { summarizeSession, renderProgressSummary } from "./render/progress-chart";
+import { assessFraming } from "./form-checker/framing-check";
+import { renderFramingReadout } from "./render/framing-readout";
 import { SessionStore, type SessionFrameRecord } from "./storage/session-store";
 import { exerciseLibrary } from "./exercise-library";
 import { loadOverrides } from "./exercise-library/overrides";
@@ -100,17 +102,28 @@ async function main() {
 
   const worldLandmarksHistory: PoseWorldLandmark[][] = [];
 
+  // The camera runs immediately so the user can frame themselves, but nothing is
+  // recorded until they press space. A real session skipped ~86% of its rule
+  // checks for landmark visibility with no warning until it was already over;
+  // recording only starts once the user has seen whether their joints are visible.
+  const framingReadout = document.getElementById("framing-readout")!;
+  let recording = false;
+
   const engine = new PoseEngine();
   await engine.init();
   engine.start(video, (result) => {
-    const frameResult = result.worldLandmarks[0]
-      ? checkFrame(exercise, result.worldLandmarks[0] as PoseWorldLandmark[], overrides)
-      : null;
+    const landmarks = result.worldLandmarks[0] as PoseWorldLandmark[] | undefined;
+    const frameResult = landmarks ? checkFrame(exercise, landmarks, overrides) : null;
 
     drawOverlay(ctx, video, result, exercise, frameResult);
 
-    if (frameResult && result.worldLandmarks[0]) {
-      worldLandmarksHistory.push(result.worldLandmarks[0] as PoseWorldLandmark[]);
+    if (!recording) {
+      renderFramingReadout(framingReadout, assessFraming(exercise, landmarks ?? []));
+      return;
+    }
+
+    if (frameResult && landmarks) {
+      worldLandmarksHistory.push(landmarks);
       const record: SessionFrameRecord = {
         sessionId,
         timestamp: Date.now(),
@@ -120,6 +133,14 @@ async function main() {
     }
   });
 
+  window.addEventListener("keydown", (e) => {
+    if (e.code !== "Space" || recording) return;
+    e.preventDefault();
+    recording = true;
+    framingReadout.classList.remove("ready", "not-ready");
+    framingReadout.textContent = "Recording — press \"e\" to end the session.";
+  });
+
   window.addEventListener("beforeunload", () => {
     engine.stop();
   });
@@ -127,7 +148,8 @@ async function main() {
   // Manual "end session" trigger for v1: a keyboard shortcut, since there's
   // no UI chrome specified in the spec beyond the core views.
   window.addEventListener("keydown", async (e) => {
-    if (e.key !== "e") return;
+    if (e.key !== "e" || !recording) return;
+    recording = false;
     engine.stop();
     stream.getTracks().forEach((t) => t.stop());
 

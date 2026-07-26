@@ -30,6 +30,20 @@ test("camera session runs end-to-end without console errors and every view rende
   // MediaPipe WASM + model download, plus a few inference frames.
   await page.waitForTimeout(5000);
 
+  // The fake device feeds a synthetic pattern, so no pose is ever detected and
+  // the framing readout must say so rather than reporting a ready state.
+  const readout = page.locator("#framing-readout");
+  await expect(readout).toHaveClass(/not-ready/);
+  await expect(readout).toContainText("No pose detected");
+
+  // Nothing is recorded until space is pressed; "e" before that is a no-op.
+  await page.keyboard.press("e");
+  await expect(page.locator("#progress-container")).toBeEmpty();
+
+  await page.keyboard.press("Space");
+  await expect(readout).toContainText("Recording");
+  await page.waitForTimeout(2000);
+
   await page.keyboard.press("e");
   await page.waitForTimeout(1000);
 
@@ -39,8 +53,12 @@ test("camera session runs end-to-end without console errors and every view rende
   expect(box?.width ?? 0).toBeGreaterThan(0);
   expect(box?.height ?? 0).toBeGreaterThan(0);
 
+  // No pose was ever detected, so there are no reps and therefore no form score.
+  // Asserting a "% good form" figure here would be asserting on a number the
+  // harness cannot actually produce — the honest end state is "nothing measured".
   const summaryText = await page.locator("#progress-container").textContent();
-  expect(summaryText).toMatch(/good form/);
+  expect(summaryText).toContain("No complete reps detected");
+  expect(summaryText).not.toMatch(/\d+% good form/);
 
   expect(consoleErrors, `Console errors:\n${consoleErrors.join("\n")}`).toEqual([]);
 });

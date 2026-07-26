@@ -18,7 +18,12 @@ export interface FrameResult {
   ruleResults: RuleResult[];
 }
 
-const VISIBILITY_THRESHOLD = 0.5;
+/**
+ * Minimum landmark visibility for a rule to be evaluated at all. Exported so the
+ * pre-session framing readout can hold the user to the same bar the grader uses —
+ * otherwise it could report "ready" while every rule gets skipped.
+ */
+export const VISIBILITY_THRESHOLD = 0.5;
 
 export function checkFrame(
   exercise: ExerciseDefinition,

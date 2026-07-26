@@ -16,6 +16,17 @@ test("camera session runs end-to-end without console errors and every view rende
   await page.goto("/");
 
   await page.waitForSelector("#overlay-canvas");
+
+  // The trust signal and the range-adjustment controls must both be present
+  // before the session starts — a stranger decides whether to grant camera
+  // access at this moment, and the defaults are only defensible if visibly
+  // adjustable. Both are rendered pre-getUserMedia deliberately.
+  await expect(page.locator("#privacy-note")).toContainText("Nothing leaves your browser");
+  const ruleRows = page.locator("#rule-settings .rule-row");
+  await expect(ruleRows).toHaveCount(2);
+  await expect(ruleRows.first()).toContainText("Knee bend depth");
+  await expect(page.locator("#rule-settings")).toContainText("default (70-100°)");
+  await page.screenshot({ path: "test-results/setup-view.png", fullPage: true });
   // MediaPipe WASM + model download, plus a few inference frames.
   await page.waitForTimeout(5000);
 

@@ -4,13 +4,46 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PT Form Tracker</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 16px;
+      }
+      section {
+        margin-bottom: 16px;
+      }
+      section h2 {
+        font-size: 14px;
+        text-transform: uppercase;
+        color: #666;
+        margin: 0 0 4px;
+      }
+      #replay-container {
+        width: 640px;
+        height: 480px;
+        background: #111;
+      }
+      #progress-container {
+        font-size: 16px;
+      }
+    </style>
   </head>
   <body>
     <div id="app">
       <video id="camera-feed" autoplay playsinline muted style="display: none"></video>
-      <canvas id="overlay-canvas"></canvas>
-      <div id="replay-container"></div>
-      <div id="progress-container"></div>
+      <section>
+        <h2>Live (press "e" to end session)</h2>
+        <canvas id="overlay-canvas"></canvas>
+      </section>
+      <section>
+        <h2>3D Replay</h2>
+        <div id="replay-container"></div>
+      </section>
+      <section>
+        <h2>Session Summary</h2>
+        <div id="progress-container"></div>
+      </section>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

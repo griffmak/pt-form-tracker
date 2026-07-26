@@ -5,6 +5,8 @@ import { ReplayView } from "./render/replay-view";
 import { summarizeSession, renderProgressSummary } from "./render/progress-chart";
 import { SessionStore, type SessionFrameRecord } from "./storage/session-store";
 import { exerciseLibrary } from "./exercise-library";
+import { loadOverrides } from "./exercise-library/overrides";
+import { renderRuleSettings } from "./render/rule-settings";
 
 /** Per-rule angle range + pass/coverage stats, dumped to console at session end for review. */
 function buildRuleStats(frames: SessionFrameRecord[]) {
@@ -72,6 +74,14 @@ async function main() {
   const framingLabel = exercise.requiredFraming === "side-view" ? "Stand side-on to the camera." : "Face the camera.";
   framingInstructions.textContent = `${framingLabel} ${exercise.referenceDescription}`;
 
+  // Reference ranges are a general guideline, so the user can retune them for their
+  // own body. Held mutable and read per-frame, so edits apply without a reload.
+  const settingsContainer = document.getElementById("rule-settings")!;
+  let overrides = loadOverrides(window.localStorage);
+  renderRuleSettings(settingsContainer, exercise, overrides, window.localStorage, (next) => {
+    overrides = next;
+  });
+
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -94,7 +104,7 @@ async function main() {
   await engine.init();
   engine.start(video, (result) => {
     const frameResult = result.worldLandmarks[0]
-      ? checkFrame(exercise, result.worldLandmarks[0] as PoseWorldLandmark[], [])
+      ? checkFrame(exercise, result.worldLandmarks[0] as PoseWorldLandmark[], overrides)
       : null;
 
     drawOverlay(ctx, video, result, exercise, frameResult);

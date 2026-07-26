@@ -34,14 +34,55 @@
         border: 1px solid #ddd;
         padding: 8px 12px;
       }
+      #privacy-note {
+        font-size: 14px;
+        background: #eef7ee;
+        border: 1px solid #cfe3cf;
+        padding: 8px 12px;
+        margin-bottom: 12px;
+      }
+      .settings-note {
+        font-size: 13px;
+        color: #555;
+        max-width: 640px;
+        margin: 0 0 8px;
+      }
+      .rule-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+        font-size: 14px;
+      }
+      .rule-row .rule-name {
+        min-width: 150px;
+        font-weight: bold;
+      }
+      .rule-row input {
+        width: 64px;
+      }
+      .rule-row .rule-status {
+        color: #666;
+        min-width: 150px;
+      }
     </style>
   </head>
   <body>
     <div id="app">
       <video id="camera-feed" autoplay playsinline muted style="display: none"></video>
+      <div id="privacy-note">
+        <strong>Nothing leaves your browser.</strong> Your camera feed is processed on
+        this device only. No video, image, or pose data is ever uploaded — session
+        history is saved locally in your browser's storage and you can delete it any
+        time by clearing site data.
+      </div>
       <section>
         <h2>Setup</h2>
         <div id="framing-instructions"></div>
+      </section>
+      <section>
+        <h2>Form ranges (adjust for your body)</h2>
+        <div id="rule-settings"></div>
       </section>
       <section>
         <h2>Live (press "e" to end session)</h2>

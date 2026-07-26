@@ -6,6 +6,41 @@ import { summarizeSession, renderProgressSummary } from "./render/progress-chart
 import { SessionStore, type SessionFrameRecord } from "./storage/session-store";
 import { exerciseLibrary } from "./exercise-library";
 
+/** Per-rule angle range + pass/coverage stats, dumped to console at session end for review. */
+function buildRuleStats(frames: SessionFrameRecord[]) {
+  const stats: Record<string, { minAngle: number; maxAngle: number; passed: number; evaluated: number; total: number }> = {};
+
+  for (const frame of frames) {
+    for (const rule of frame.ruleResults) {
+      const stat = (stats[rule.ruleName] ??= {
+        minAngle: Infinity,
+        maxAngle: -Infinity,
+        passed: 0,
+        evaluated: 0,
+        total: 0
+      });
+      stat.total += 1;
+      if (rule.evaluated) {
+        stat.evaluated += 1;
+        if (rule.passed) stat.passed += 1;
+        if (rule.angleDegrees !== null) {
+          stat.minAngle = Math.min(stat.minAngle, rule.angleDegrees);
+          stat.maxAngle = Math.max(stat.maxAngle, rule.angleDegrees);
+        }
+      }
+    }
+  }
+
+  return stats;
+}
+
+window.onerror = (message, _source, _lineno, _colno, error) => {
+  console.error("[pt-form-tracker] uncaught error:", message, error ?? "");
+};
+window.onunhandledrejection = (event) => {
+  console.error("[pt-form-tracker] unhandled rejection:", event.reason);
+};
+
 async function main() {
   const exercise = exerciseLibrary["squat"];
   const video = document.getElementById("camera-feed") as HTMLVideoElement;
@@ -74,6 +109,7 @@ async function main() {
     const frames = await store.getFramesForSession(sessionId);
     const summary = summarizeSession(frames);
     renderProgressSummary(progressContainer, summary);
+    console.table(buildRuleStats(frames));
 
     const replay = new ReplayView(replayContainer);
     let i = 0;

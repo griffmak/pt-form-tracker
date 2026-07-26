@@ -140,7 +140,7 @@ async function main() {
     }
 
     const frames = await store.getFramesForSession(sessionId);
-    const summary = summarizeSession(frames);
+    const summary = summarizeSession(frames, exercise);
     renderProgressSummary(progressContainer, summary);
     const ruleStats = buildRuleStats(frames);
     console.table(ruleStats);

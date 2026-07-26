@@ -16,6 +16,12 @@ export interface ExerciseDefinition {
   referenceDescription: string;
   /** Which camera angle this exercise's rules require to be measurable */
   requiredFraming: CameraFraming;
+  /**
+   * Name of the rule whose joint angle drives rep segmentation — the joint that
+   * moves most through the movement. Form is graded at each rep's deepest point
+   * on this signal, not on every frame.
+   */
+  repSignalRuleName: string;
   rules: JointAngleRule[];
 }
 

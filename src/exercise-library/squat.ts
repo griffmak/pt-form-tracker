@@ -19,6 +19,7 @@ export const squat: ExerciseDefinition = {
   referenceDescription:
     "Stand with feet shoulder-width apart, lower hips back and down, keep chest up.",
   requiredFraming: "side-view",
+  repSignalRuleName: "Knee bend depth",
   rules: [
     {
       name: "Knee bend depth",

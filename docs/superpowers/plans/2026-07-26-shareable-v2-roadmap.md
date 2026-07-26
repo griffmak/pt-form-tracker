@@ -1,11 +1,46 @@
 # PT Form Tracker: Roadmap to Shareable v2
 
-**Partially executed: 2026-07-26.** Layer 1 (items 1–3) and Layer 2 (items 4–5) are all DONE and deployed live at https://pt-form-tracker-lyart.vercel.app. Live testing after the deploy exposed a NEW blocking item — see "Layer 0" added below, which now gates sharing the link.
+**Executed: 2026-07-26.** Layer 1 (items 1–3), Layer 2 (items 4–5) and Layer 0 are all DONE. Deployed live at https://pt-form-tracker-lyart.vercel.app — **but the live deployment still runs the old per-frame scoring; it needs a redeploy from `63e262e` or later before the link is promoted.**
 
 Date: 2026-07-26
 End goal (standing, cross-project): reach a professional, shareable state — something another person could pick up and use, not just a script that works for one tester on one body in one room. v1 (squat tracking, IndexedDB storage, 3D replay) is built, tested against a real session, pushed to GitHub, and one real bug (missing camera-framing instructions) was found and fixed via live testing. This roadmap is what's left before it's genuinely shareable, ordered by blocking-ness.
 
-## Layer 0 — NEW BLOCKING ITEM, found by live testing after the deploy (2026-07-26)
+## Layer 0 — ✅ BOTH DONE 2026-07-26 (evening)
+
+**Fixed in `8124ac7` (scoring) and `63e262e` (framing).** 41/41 unit tests (was 14),
+e2e green, typecheck and build clean.
+
+- **Per-rep scoring.** `detectReps` (`src/form-checker/rep-detection.ts`) segments the
+  session on the exercise's rep-signal joint — new `repSignalRuleName` field, `"Knee
+  bend depth"` for squat — using hysteresis rather than naive local minima, so wobble
+  at the bottom of a squat reads as one rep instead of three. `summarizeSession` grades
+  only each rep's deepest frame. `passRate` is now `number | null`: **null when no reps
+  were detected**, and the UI says so plainly instead of rendering a score it doesn't
+  have. Pure deterministic geometry, no model, no network — the privacy claim holds.
+
+  One correction the fix surfaced: a 15° minimum rep excursion still invented reps out
+  of the real session's 21.6° of wobble. Raised to 40°, set from squat anatomy
+  (standing ~170°, quarter squat ~120°), with the real captured angle series pinned as
+  a regression test. Reporting reps there would have swapped one misleading metric for
+  another.
+
+- **Framing/visibility.** `assessFraming` (`src/form-checker/framing-check.ts`) names
+  the specific joints out of frame and says what to do ("Can't see your left ankle.
+  Move further back so your whole body is in frame"), sharing the grader's exact
+  `VISIBILITY_THRESHOLD` so the readout can't say "ready" while every rule is skipped.
+  Rendered live during a new setup phase; **recording now starts on space** rather than
+  immediately, which also removes the pre-session close-to-camera frames from the
+  capture. `"e"` before recording is a no-op.
+
+### Still open
+
+- **Redeploy.** The live URL serves the old scoring. `npx vercel --prod` (manual —
+  auto-mode blocks it), then verify by curling the live page, not by the CLI exit code.
+- **Re-test with a real squat.** The 86%-skipped-checks session predates the readout;
+  whether the readout actually gets a user to good framing is unverified against a real
+  body. That is the next real-world test, and it needs a person, not a fixture.
+
+## Layer 0 — original problem statement, found by live testing after the deploy (2026-07-26)
 
 0. **Scoring is per-frame, not per-rep — the app reports "0% good form" for correct squats.** `summarizeSession` (`src/render/progress-chart.ts`) grades *every frame* against "are you at the bottom of a squat right now." Standing still, descending, and ascending all count as failures, so five flawless reps still score near zero. The arithmetic is honest (`passRate = passed / evaluated`, so unseen frames don't dilute it) — the metric is what's wrong, and the label "0% good form" claims far more than it measures.
 

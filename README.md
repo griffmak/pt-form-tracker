@@ -3,10 +3,31 @@
 A browser-based squat form tracker. It uses your webcam and on-device pose
 estimation ([MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker))
 to give live visual feedback on your joint angles during a squat, then shows a
-3D skeleton replay and a per-rule summary of how consistent that session was.
+3D skeleton replay and a per-rule summary of how that session went.
 
 It runs entirely in your browser. There is no backend, no account, and no server
 to send anything to.
+
+---
+
+## Current scope — read this before expecting more
+
+This is **a single-session squat tracker**, and only that:
+
+- **One exercise.** Squat, side-on to the camera. Nothing else is defined.
+- **One session at a time.** You get a summary of the session you just finished.
+  Frame data is written to IndexedDB and persists, but **nothing reads it back** —
+  there is no history view, no across-sessions trend, and no "am I improving"
+  answer yet. That is the intended next feature, not a shipped one.
+- **Desktop only.** Mobile is untested and unsupported.
+- **Validated against one body**, one room, one camera, by the person who built
+  it. MediaPipe's accuracy is known to vary with lighting, camera quality, and
+  skin tone. Treat it as an experimental tool, not a clinical instrument.
+
+Form is graded **per rep** — the tool finds each rep's deepest point and checks
+your joint angles there. If it can't find any complete reps it tells you that
+plainly rather than reporting a score, because "no reps detected" and "bad form"
+are different facts.
 
 ---
 
@@ -18,9 +39,10 @@ to send anything to.
   into a `<canvas>`, passed to the pose model in-page, and discarded.
 - **No video, no images, and no pose data are uploaded anywhere.** There is no
   backend and no analytics — the app has nowhere to send data even if it tried.
-- Session history (per-rule angle results and pass rates — numbers, not imagery)
-  is stored **locally in your browser's IndexedDB**. Your adjusted angle ranges
-  are stored in `localStorage`.
+- Per-frame rule results (angles and pass/fail — numbers, not imagery) are
+  written **locally to your browser's IndexedDB**. Your adjusted angle ranges are
+  stored in `localStorage`. Note that this data currently accumulates but is
+  never read back — see "Current scope" below.
 - You can delete all of it at any time by clearing site data for this origin in
   your browser settings. Uninstalling is just closing the tab.
 - Two assets are fetched over the network at startup: the MediaPipe WASM runtime

@@ -1,5 +1,14 @@
 # Phase 0 — Kill Fabricated Reps Implementation Plan
 
+**Completed: 2026-07-28.** All five tasks executed, five commits
+(`996bb49` → `0a52004`) on `measurement-rebuild`, pushed. 57/57 unit tests,
+clean build, one-rule settings panel confirmed in the browser. Measured
+outcomes matched the predictions in "What has already been verified" exactly.
+
+**One correction to this document, found during execution:** Task 3 Step 2
+predicted that `"discards a dip too brief to be a rep"` would fail. It passed —
+see the note inside that step. The fixture was replaced.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stop the tool inventing reps out of pose-tracker glitches, and delete
@@ -629,6 +638,38 @@ the Task 1 and Task 2 guards.
 If anything else fails, stop and read the failure before continuing. The
 fixtures above were replayed against the finished implementation and all pass;
 an unexpected failure means Task 1 or Task 2 was wired in differently.
+
+> **CORRECTION — 2026-07-28, found during execution.**
+>
+> The dip test above does **not** fail. It passes, and it would pass with
+> `MIN_REP_FRAMES` deleted entirely — so as written it validates nothing.
+>
+> The fixture dips `170 → 100` in a single frame, ~4200°/s. Task 2's
+> `rejectImplausibleJumps` nulls every dip frame before the duration logic
+> ever runs. Verified by probe rather than inferred: the filter returns
+> `[null, null, null, null]` across indices 40–43, with zero surviving samples
+> below standing.
+>
+> Replace the fixture with a **kinematically plausible but short** dip — inside
+> the 10°/frame budget so it survives the filter, but spending under
+> `MIN_REP_FRAMES` below the entry threshold:
+>
+> ```typescript
+>     const angles = [
+>       ...new Array(40).fill(170),
+>       ...ramp(170, 106, 9),
+>       ...ramp(106, 170, 9).slice(1),
+>       ...new Array(40).fill(170)
+>     ];
+> ```
+>
+> That version reports 1 rep before the floor is added and `[]` after, which is
+> what this step was meant to demonstrate.
+>
+> The general lesson — a test can pass for a reason unrelated to what it claims
+> to test, and an unexpected *pass* deserves the same scrutiny as an unexpected
+> failure — is written up on
+> `wiki/pages/patterns/metric-verification-before-diagnosis.md`.
 
 - [ ] **Step 3: Implement the duration floor**
 

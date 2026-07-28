@@ -7,4 +7,5 @@ test-results/
 # latest.json stays ignored — every dev session overwrites it.
 .claude-test-artifacts/*
 !.claude-test-artifacts/session-*.json
+!.claude-test-artifacts/corpus-*.json
 .vercel

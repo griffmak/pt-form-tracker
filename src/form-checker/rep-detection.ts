@@ -82,6 +82,14 @@ const MAX_DEGREES_PER_FRAME = 10;
 const MAX_BRIDGED_GAP_FRAMES = 30;
 
 /**
+ * Minimum frames a rep must spend below the entry threshold. ~0.3s at 60fps.
+ * Shorter excursions are stumbles, shifts, or tracking wobble. Measured in
+ * index span rather than sample count, so unevaluated frames still count as
+ * elapsed time — a rep does not become "too short" because the tracker blinked.
+ */
+const MIN_REP_FRAMES = 18;
+
+/**
  * Replaces physiologically impossible samples with null, leaving the series
  * length and every plausible sample unchanged. Comparison is always against
  * the last *accepted* sample, so a multi-frame glitch burst is rejected in
@@ -145,6 +153,7 @@ export function detectReps(angles: (number | null)[]): Rep[] {
 
   const reps: Rep[] = [];
   let inRep = false;
+  let openIndex = -1;
   let bottomIndex = -1;
   let bottomAngle = Infinity;
 
@@ -155,6 +164,7 @@ export function detectReps(angles: (number | null)[]): Rep[] {
     if (!inRep) {
       if (angle < enterThreshold) {
         inRep = true;
+        openIndex = i;
         bottomAngle = angle;
         bottomIndex = i;
       }
@@ -167,15 +177,21 @@ export function detectReps(angles: (number | null)[]): Rep[] {
     }
 
     if (angle > exitThreshold) {
-      reps.push({ bottomIndex, bottomAngleDegrees: bottomAngle });
+      if (i - openIndex >= MIN_REP_FRAMES) {
+        reps.push({ bottomIndex, bottomAngleDegrees: bottomAngle });
+      }
       inRep = false;
+      openIndex = -1;
       bottomAngle = Infinity;
       bottomIndex = -1;
     }
   }
 
-  // A rep still underway when the session ended still reached a bottom.
-  if (inRep) reps.push({ bottomIndex, bottomAngleDegrees: bottomAngle });
+  // A rep still underway when the session ended still reached a bottom, as long
+  // as it lasted long enough to be a rep at all.
+  if (inRep && cleaned.length - 1 - openIndex >= MIN_REP_FRAMES) {
+    reps.push({ bottomIndex, bottomAngleDegrees: bottomAngle });
+  }
 
   return reps;
 }

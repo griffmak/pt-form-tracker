@@ -31,21 +31,34 @@ function frame(knee: number | null, torso: number | null): SessionFrameRecord {
 const STANDING_KNEE = 170;
 const STANDING_TORSO = 175;
 
+/** Half a rep, in frames. 40 frames at 60fps is ~0.67s — a controlled descent. */
+const REP_HALF_FRAMES = 40;
+
+function lerp(from: number, to: number, t: number): number {
+  return from + (to - from) * t;
+}
+
 /**
  * Stand -> descend -> bottom -> ascend -> stand, at a given bottom depth.
- * Mid-movement frames are interpolated from the bottom so a shallow rep's
- * descent never dips deeper than the rep's own bottom.
+ * Movement frames are interpolated from the bottom so a shallow rep's descent
+ * never dips deeper than the rep's own bottom.
+ *
+ * Frame counts are 60fps-realistic on purpose. This fixture used to describe a
+ * rep in five frames — 40deg of knee travel per frame, or 2400deg/s — which no
+ * joint does, and which rep detection's plausibility filter correctly rejects.
+ * The fixture was wrong, not the guard.
  */
 function repFrames(bottomKnee: number, bottomTorso: number): SessionFrameRecord[] {
-  const midKnee = (STANDING_KNEE + bottomKnee) / 2;
-  const midTorso = (STANDING_TORSO + bottomTorso) / 2;
-  return [
-    frame(STANDING_KNEE, STANDING_TORSO),
-    frame(midKnee, midTorso),
-    frame(bottomKnee, bottomTorso),
-    frame(midKnee, midTorso),
-    frame(STANDING_KNEE, STANDING_TORSO)
-  ];
+  const frames: SessionFrameRecord[] = [];
+  for (let i = 0; i < REP_HALF_FRAMES; i++) {
+    const t = i / (REP_HALF_FRAMES - 1);
+    frames.push(frame(lerp(STANDING_KNEE, bottomKnee, t), lerp(STANDING_TORSO, bottomTorso, t)));
+  }
+  for (let i = 1; i < REP_HALF_FRAMES; i++) {
+    const t = i / (REP_HALF_FRAMES - 1);
+    frames.push(frame(lerp(bottomKnee, STANDING_KNEE, t), lerp(bottomTorso, STANDING_TORSO, t)));
+  }
+  return frames;
 }
 
 describe("summarizeSession", () => {
@@ -97,7 +110,8 @@ describe("summarizeSession", () => {
 
   test("reports whole-session visibility coverage, not just coverage at rep bottoms", () => {
     // Half the frames had no usable landmarks at all.
-    const frames = [...repFrames(90, 60), ...new Array(5).fill(null).map(() => frame(null, null))];
+    const rep = repFrames(90, 60);
+    const frames = [...rep, ...rep.map(() => frame(null, null))];
 
     const summary = summarizeSession(frames, squat);
 

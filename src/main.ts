@@ -102,6 +102,16 @@ async function main() {
 
   const worldLandmarksHistory: PoseWorldLandmark[][] = [];
 
+  // Per-frame tracking diagnostics, kept alongside the graded frames rather than
+  // inside them: a frame with no pose at all is never stored (see below), so the
+  // stored series silently omits those moments and any gap in it is unreadable.
+  // Three sessions came back with long unexplained blank stretches that could
+  // equally have been "no body found", "body found, joints not trusted", or
+  // "user out of frame" -- indistinguishable from angles alone. Recording the
+  // raw per-joint confidence separates them.
+  const trackedJointIndices = [...new Set(exercise.rules.flatMap((r) => r.joints))].sort((a, b) => a - b);
+  const tracking: { t: number; posed: boolean; visibility: number[] | null }[] = [];
+
   // The camera runs immediately so the user can frame themselves, but nothing is
   // recorded until they press space. A real session skipped ~86% of its rule
   // checks for landmark visibility with no warning until it was already over;
@@ -121,6 +131,12 @@ async function main() {
       renderFramingReadout(framingReadout, assessFraming(exercise, landmarks ?? []));
       return;
     }
+
+    tracking.push({
+      t: Date.now(),
+      posed: Boolean(landmarks),
+      visibility: landmarks ? trackedJointIndices.map((i) => landmarks[i].visibility) : null
+    });
 
     if (frameResult && landmarks) {
       worldLandmarksHistory.push(landmarks);
@@ -163,6 +179,21 @@ async function main() {
 
     const frames = await store.getFramesForSession(sessionId);
     const summary = summarizeSession(frames, exercise);
+
+    // Every rule's full per-frame angle series, dumped so metric changes can be
+    // replayed against real capture rather than only synthetic fixtures. The previous
+    // "real session" regression test pinned 12 hand-transcribed points; a 15deg
+    // rep threshold passed 9 synthetic tests and still invented reps out of that
+    // session's wobble, so the whole series is worth having on disk. Every rule
+    // rather than just the rep signal, because whether some other joint would
+    // segment reps more reliably can only be answered by lining them up frame
+    // by frame. null means the rule wasn't evaluated on that frame.
+    const angleSeries: Record<string, (number | null)[]> = {};
+    for (const frame of frames) {
+      for (const rule of frame.ruleResults) {
+        (angleSeries[rule.ruleName] ??= []).push(rule.evaluated ? rule.angleDegrees : null);
+      }
+    }
     renderProgressSummary(progressContainer, summary);
     const ruleStats = buildRuleStats(frames);
     console.table(ruleStats);
@@ -172,6 +203,8 @@ async function main() {
       frameCount: frames.length,
       summary,
       ruleStats,
+      angleSeries,
+      tracking: { jointIndices: trackedJointIndices, frames: tracking },
       errors: capturedErrors
     });
 

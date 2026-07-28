@@ -29,6 +29,37 @@ const ENTER_FRACTION = 0.6;
 const EXIT_FRACTION = 0.3;
 
 /**
+ * Calibration percentiles, replacing the raw max/min this function used to
+ * take over the whole series.
+ *
+ * The 2026-07-28 standing-still capture reported 2 reps from 767 frames of
+ * a stationary body, because frame 43 read 66.6deg where frame 42 read 141.6.
+ * Raw min/max let that one frame define both ends of the scale, and
+ * MIN_REP_RANGE_DEGREES could not catch it because the glitch frame is what
+ * created the range. Percentiles make the calibration robust to a small
+ * number of arbitrarily wrong frames, which is exactly the failure mode
+ * MediaPipe produces while its tracker converges.
+ */
+const CALIBRATION_LOW_PERCENTILE = 0.05;
+const CALIBRATION_HIGH_PERCENTILE = 0.95;
+
+/**
+ * Linear-interpolated percentile over an ascending-sorted series.
+ * Exported so replay tooling and later phases can calibrate the same way.
+ */
+export function percentile(sortedAscending: number[], p: number): number | null {
+  if (sortedAscending.length === 0) return null;
+  const position = (sortedAscending.length - 1) * p;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  if (lower === upper) return sortedAscending[lower];
+  return (
+    sortedAscending[lower] +
+    (sortedAscending[upper] - sortedAscending[lower]) * (position - lower)
+  );
+}
+
+/**
  * Segments a per-frame joint-angle series into reps and reports each rep's
  * deepest point.
  *
@@ -42,15 +73,11 @@ const EXIT_FRACTION = 0.3;
  * privacy claim the README and the on-screen note both make.
  */
 export function detectReps(angles: (number | null)[]): Rep[] {
-  let standingAngle = -Infinity;
-  let deepestAngle = Infinity;
-  for (const angle of angles) {
-    if (angle === null) continue;
-    if (angle > standingAngle) standingAngle = angle;
-    if (angle < deepestAngle) deepestAngle = angle;
-  }
+  const sorted = angles.filter((a): a is number => a !== null).sort((a, b) => a - b);
+  if (sorted.length === 0) return [];
 
-  if (standingAngle === -Infinity) return [];
+  const standingAngle = percentile(sorted, CALIBRATION_HIGH_PERCENTILE)!;
+  const deepestAngle = percentile(sorted, CALIBRATION_LOW_PERCENTILE)!;
 
   const range = standingAngle - deepestAngle;
   if (range < MIN_REP_RANGE_DEGREES) return [];

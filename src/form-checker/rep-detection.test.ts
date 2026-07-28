@@ -1,5 +1,36 @@
 import { describe, test, expect } from "vitest";
-import { detectReps } from "./rep-detection";
+import { detectReps, percentile } from "./rep-detection";
+
+describe("percentile", () => {
+  test("returns null for an empty series", () => {
+    expect(percentile([], 0.5)).toBeNull();
+  });
+
+  test("returns the single value for a one-element series", () => {
+    expect(percentile([42], 0.05)).toBe(42);
+  });
+
+  test("interpolates between neighbouring samples", () => {
+    // 11 samples, so p=0.05 lands at index 0.5 — halfway between 0 and 10.
+    expect(percentile([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100], 0.05)).toBe(5);
+  });
+
+  test("returns the extremes at p=0 and p=1", () => {
+    expect(percentile([1, 2, 3], 0)).toBe(1);
+    expect(percentile([1, 2, 3], 1)).toBe(3);
+  });
+});
+
+describe("detectReps calibration", () => {
+  test("ignores a single glitch frame when setting the session scale", () => {
+    // 200 frames of standing still at 170deg, with one frame reading 60deg.
+    // Raw min/max sees a 110deg range and invents a rep. Percentiles see ~0.
+    const standingWithGlitch: number[] = new Array(200).fill(170);
+    standingWithGlitch[100] = 60;
+
+    expect(detectReps(standingWithGlitch)).toEqual([]);
+  });
+});
 
 /**
  * Synthetic knee-angle series. 180deg = fully extended (standing),

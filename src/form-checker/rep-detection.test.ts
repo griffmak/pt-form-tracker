@@ -1,5 +1,54 @@
 import { describe, test, expect } from "vitest";
-import { detectReps, percentile } from "./rep-detection";
+import { detectReps, percentile, rejectImplausibleJumps } from "./rep-detection";
+
+describe("rejectImplausibleJumps", () => {
+  test("keeps a physiologically normal descent untouched", () => {
+    // ~2.7deg per frame at 60fps — a controlled squat.
+    const descent = [170, 167.3, 164.6, 161.9, 159.2, 156.5];
+
+    expect(rejectImplausibleJumps(descent)).toEqual(descent);
+  });
+
+  test("nulls a single-frame jump no joint can make", () => {
+    // The real 2026-07-28 glitch: 141.6 -> 66.6 in 1/60s, roughly 4500 deg/s.
+    const withGlitch = [145.0, 143.0, 141.6, 66.6, 142.0, 141.0];
+
+    expect(rejectImplausibleJumps(withGlitch)).toEqual([
+      145.0, 143.0, 141.6, null, 142.0, 141.0
+    ]);
+  });
+
+  test("nulls a multi-frame glitch burst, not just its first frame", () => {
+    // Frames 43-45 of the standing capture were all garbage, not just 43.
+    const burst = [141.6, 66.6, 79.8, 73.1, 140.9, 141.2];
+
+    expect(rejectImplausibleJumps(burst)).toEqual([
+      141.6, null, null, null, 140.9, 141.2
+    ]);
+  });
+
+  test("allows a larger change across a longer gap", () => {
+    // 5 frames apart is 5x the per-frame budget, so 40deg is plausible.
+    const sparse: (number | null)[] = [170, null, null, null, null, 130];
+
+    expect(rejectImplausibleJumps(sparse)).toEqual(sparse);
+  });
+
+  test("re-seeds rather than rejecting after a long blind gap", () => {
+    // After 40 frames of no measurement the body genuinely could be anywhere.
+    // Rejecting here would mean one dropout poisons the rest of the session.
+    const longGap: (number | null)[] = [170, ...new Array(40).fill(null), 85];
+
+    expect(rejectImplausibleJumps(longGap)).toEqual(longGap);
+  });
+
+  test("does not mutate its input", () => {
+    const input = [141.6, 66.6, 142.0];
+    rejectImplausibleJumps(input);
+
+    expect(input).toEqual([141.6, 66.6, 142.0]);
+  });
+});
 
 describe("percentile", () => {
   test("returns null for an empty series", () => {

@@ -60,6 +60,62 @@ export function percentile(sortedAscending: number[], p: number): number | null 
 }
 
 /**
+ * Maximum plausible change in the signal joint between consecutive frames.
+ *
+ * At 60fps, 10deg/frame is 600deg/s. A controlled rehab squat stays well under
+ * 300-500deg/s, so this leaves headroom for a fast rep while still rejecting
+ * the ~4500deg/s glitch observed in the 2026-07-28 standing capture.
+ *
+ * This is deliberately NOT another visibility threshold. MediaPipe's
+ * `visibility` predicts non-occlusion, not positional correctness — the glitch
+ * frames that fabricated two reps out of a stationary body all had high
+ * visibility. Only a kinematic check catches them.
+ */
+const MAX_DEGREES_PER_FRAME = 10;
+
+/**
+ * Longest measurement gap the filter will reason across. Beyond this the body
+ * genuinely could have moved anywhere, so the filter re-seeds from the new
+ * sample instead of rejecting it. Without this, one long dropout would poison
+ * every remaining frame of the session.
+ */
+const MAX_BRIDGED_GAP_FRAMES = 30;
+
+/**
+ * Replaces physiologically impossible samples with null, leaving the series
+ * length and every plausible sample unchanged. Comparison is always against
+ * the last *accepted* sample, so a multi-frame glitch burst is rejected in
+ * full rather than the filter walking along with it.
+ */
+export function rejectImplausibleJumps(angles: (number | null)[]): (number | null)[] {
+  const out = angles.slice();
+  let lastValue: number | null = null;
+  let lastIndex = -1;
+
+  for (let i = 0; i < angles.length; i++) {
+    const value = angles[i];
+    if (value === null) continue;
+
+    const gap = i - lastIndex;
+    if (lastValue === null || gap > MAX_BRIDGED_GAP_FRAMES) {
+      lastValue = value;
+      lastIndex = i;
+      continue;
+    }
+
+    if (Math.abs(value - lastValue) > gap * MAX_DEGREES_PER_FRAME) {
+      out[i] = null;
+      continue;
+    }
+
+    lastValue = value;
+    lastIndex = i;
+  }
+
+  return out;
+}
+
+/**
  * Segments a per-frame joint-angle series into reps and reports each rep's
  * deepest point.
  *
@@ -73,7 +129,9 @@ export function percentile(sortedAscending: number[], p: number): number | null 
  * privacy claim the README and the on-screen note both make.
  */
 export function detectReps(angles: (number | null)[]): Rep[] {
-  const sorted = angles.filter((a): a is number => a !== null).sort((a, b) => a - b);
+  const cleaned = rejectImplausibleJumps(angles);
+
+  const sorted = cleaned.filter((a): a is number => a !== null).sort((a, b) => a - b);
   if (sorted.length === 0) return [];
 
   const standingAngle = percentile(sorted, CALIBRATION_HIGH_PERCENTILE)!;
@@ -90,8 +148,8 @@ export function detectReps(angles: (number | null)[]): Rep[] {
   let bottomIndex = -1;
   let bottomAngle = Infinity;
 
-  for (let i = 0; i < angles.length; i++) {
-    const angle = angles[i];
+  for (let i = 0; i < cleaned.length; i++) {
+    const angle = cleaned[i];
     if (angle === null) continue;
 
     if (!inRep) {

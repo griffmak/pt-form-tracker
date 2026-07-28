@@ -1,5 +1,10 @@
 node_modules/
 dist/
 test-results/
-.claude-test-artifacts/
+# Archived captures are tracked: they are the evidence base for the measurement
+# rebuild and the corpus later phases validate against, and re-recording is
+# expensive because tracking quality varies unpredictably between sessions.
+# latest.json stays ignored — every dev session overwrites it.
+.claude-test-artifacts/*
+!.claude-test-artifacts/session-*.json
 .vercel

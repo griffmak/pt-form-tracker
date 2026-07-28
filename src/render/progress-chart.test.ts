@@ -5,7 +5,6 @@ import type { SessionFrameRecord } from "../storage/session-store";
 import type { RuleResult } from "../form-checker/form-checker";
 
 const KNEE = "Knee bend depth";
-const TORSO = "Torso lean";
 
 function ruleResult(name: string, angle: number | null): RuleResult {
   const rule = squat.rules.find((r) => r.name === name)!;
@@ -20,16 +19,19 @@ function ruleResult(name: string, angle: number | null): RuleResult {
   };
 }
 
-function frame(knee: number | null, torso: number | null): SessionFrameRecord {
+// Squat carried a second "Torso lean" rule until 2026-07-28, when it was
+// removed for computing an interior hip angle while documenting a band in
+// degrees from vertical. These fixtures therefore describe one rule per frame,
+// and the pass rates below are out of one check per rep rather than two.
+function frame(knee: number | null): SessionFrameRecord {
   return {
     sessionId: "s1",
     timestamp: 0,
-    ruleResults: [ruleResult(KNEE, knee), ruleResult(TORSO, torso)]
+    ruleResults: [ruleResult(KNEE, knee)]
   };
 }
 
 const STANDING_KNEE = 170;
-const STANDING_TORSO = 175;
 
 /** Half a rep, in frames. 40 frames at 60fps is ~0.67s — a controlled descent. */
 const REP_HALF_FRAMES = 40;
@@ -48,15 +50,15 @@ function lerp(from: number, to: number, t: number): number {
  * joint does, and which rep detection's plausibility filter correctly rejects.
  * The fixture was wrong, not the guard.
  */
-function repFrames(bottomKnee: number, bottomTorso: number): SessionFrameRecord[] {
+function repFrames(bottomKnee: number): SessionFrameRecord[] {
   const frames: SessionFrameRecord[] = [];
   for (let i = 0; i < REP_HALF_FRAMES; i++) {
     const t = i / (REP_HALF_FRAMES - 1);
-    frames.push(frame(lerp(STANDING_KNEE, bottomKnee, t), lerp(STANDING_TORSO, bottomTorso, t)));
+    frames.push(frame(lerp(STANDING_KNEE, bottomKnee, t)));
   }
   for (let i = 1; i < REP_HALF_FRAMES; i++) {
     const t = i / (REP_HALF_FRAMES - 1);
-    frames.push(frame(lerp(bottomKnee, STANDING_KNEE, t), lerp(bottomTorso, STANDING_TORSO, t)));
+    frames.push(frame(lerp(bottomKnee, STANDING_KNEE, t)));
   }
   return frames;
 }
@@ -73,7 +75,7 @@ describe("summarizeSession", () => {
     // The bug this fixes: standing frames were graded against "are you at the
     // bottom of a squat right now", so a session with no reps scored 0% good
     // form rather than reporting that nothing was measured.
-    const standingOnly = new Array(40).fill(null).map(() => frame(172, 175));
+    const standingOnly = new Array(40).fill(null).map(() => frame(172));
 
     const summary = summarizeSession(standingOnly, squat);
 
@@ -83,7 +85,7 @@ describe("summarizeSession", () => {
 
   test("scores a good rep at its deepest point, not every frame", () => {
     // Every non-bottom frame is out of range; only the bottom is in range.
-    const summary = summarizeSession(repFrames(90, 60), squat);
+    const summary = summarizeSession(repFrames(90), squat);
 
     expect(summary.repCount).toBe(1);
     expect(summary.passRate).toBe(1);
@@ -91,27 +93,27 @@ describe("summarizeSession", () => {
 
   test("scores a rep that bottoms out short of the target range as failing", () => {
     // Knee only reaches 115deg — above the 70-100 target, a quarter squat.
-    const summary = summarizeSession(repFrames(115, 60), squat);
+    const summary = summarizeSession(repFrames(115), squat);
 
     expect(summary.repCount).toBe(1);
-    expect(summary.passRate).toBe(0.5); // torso passes, knee doesn't
+    expect(summary.passRate).toBe(0);
   });
 
   test("averages form across several reps", () => {
     const summary = summarizeSession(
-      [...repFrames(90, 60), ...repFrames(90, 60), ...repFrames(115, 60)],
+      [...repFrames(90), ...repFrames(90), ...repFrames(115)],
       squat
     );
 
     expect(summary.repCount).toBe(3);
-    // 3 reps x 2 rules = 6 checks; only the third rep's knee fails.
-    expect(summary.passRate).toBeCloseTo(5 / 6);
+    // 3 reps x 1 rule = 3 checks; only the third rep's knee fails.
+    expect(summary.passRate).toBeCloseTo(2 / 3);
   });
 
   test("reports whole-session visibility coverage, not just coverage at rep bottoms", () => {
     // Half the frames had no usable landmarks at all.
-    const rep = repFrames(90, 60);
-    const frames = [...rep, ...rep.map(() => frame(null, null))];
+    const rep = repFrames(90);
+    const frames = [...rep, ...rep.map(() => frame(null))];
 
     const summary = summarizeSession(frames, squat);
 

@@ -112,7 +112,6 @@ The default ranges shipped for the squat are:
 | Rule | Default range | Where it comes from |
 |---|---|---|
 | Knee bend depth | 70–100° | Clinical squat-depth literature placing near-parallel-to-parallel thigh position in this band |
-| Torso lean | 45–90° | The commonly cited threshold for "excessive" forward trunk lean |
 
 These are **population-level reference values from public PT guidance**. They
 are not calibrated to you. If you have different limb proportions, an existing

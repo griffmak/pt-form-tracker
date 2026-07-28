@@ -50,19 +50,19 @@ describe("rule overrides", () => {
 
   test("overrides for different rules coexist", () => {
     saveOverride({ exerciseId: "squat", ruleName: "Knee bend depth", minDegrees: 60, maxDegrees: 110 }, storage);
-    saveOverride({ exerciseId: "squat", ruleName: "Torso lean", minDegrees: 40, maxDegrees: 95 }, storage);
+    saveOverride({ exerciseId: "squat", ruleName: "Some other rule", minDegrees: 40, maxDegrees: 95 }, storage);
 
     expect(loadOverrides(storage)).toHaveLength(2);
   });
 
   test("clearing an override leaves the others intact", () => {
     saveOverride({ exerciseId: "squat", ruleName: "Knee bend depth", minDegrees: 60, maxDegrees: 110 }, storage);
-    saveOverride({ exerciseId: "squat", ruleName: "Torso lean", minDegrees: 40, maxDegrees: 95 }, storage);
+    saveOverride({ exerciseId: "squat", ruleName: "Some other rule", minDegrees: 40, maxDegrees: 95 }, storage);
 
     clearOverride("squat", "Knee bend depth", storage);
 
     expect(loadOverrides(storage)).toEqual([
-      { exerciseId: "squat", ruleName: "Torso lean", minDegrees: 40, maxDegrees: 95 }
+      { exerciseId: "squat", ruleName: "Some other rule", minDegrees: 40, maxDegrees: 95 }
     ]);
   });
 

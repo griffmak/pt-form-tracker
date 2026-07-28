@@ -13,8 +13,6 @@ describe("checkFrame", () => {
     landmarks[23] = landmark(0, 1, 0); // hip
     landmarks[25] = landmark(0, 0, 0); // knee (vertex)
     landmarks[27] = landmark(1, 0, 0); // ankle
-    landmarks[11] = landmark(0, 2, 0); // shoulder
-    // Torso lean rule uses 11-23-25: shoulder(0,2,0) hip(0,1,0) knee(0,0,0) -> 180deg, outside 45-90 range on purpose.
 
     const result = checkFrame(squat, landmarks, []);
 

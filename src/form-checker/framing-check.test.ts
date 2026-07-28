@@ -48,10 +48,12 @@ describe("assessFraming", () => {
   });
 
   test("reports the fraction of measured joints that are visible", () => {
-    // 2 of squat's 4 measured joints below threshold.
+    // 2 of squat's 3 measured joints below threshold. Squat measured 4 joints
+    // until the torso rule was removed on 2026-07-28; it now measures hip,
+    // knee and ankle only.
     const assessment = assessFraming(squat, landmarks({ 25: 0.2, 27: 0.1 }));
 
-    expect(assessment.visibleFraction).toBe(0.5);
+    expect(assessment.visibleFraction).toBeCloseTo(1 / 3);
     expect(assessment.missingJointNames).toEqual(["left knee", "left ankle"]);
   });
 

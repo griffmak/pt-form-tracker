@@ -9,6 +9,8 @@ import { SessionStore, type SessionFrameRecord } from "./storage/session-store";
 import { exerciseLibrary } from "./exercise-library";
 import { loadOverrides } from "./exercise-library/overrides";
 import { renderRuleSettings } from "./render/rule-settings";
+import { serializeLandmarks, RECORDED_LANDMARK_INDICES } from "./pose/landmark-recording";
+import type { RecordedFrame } from "./pose/landmark-recording";
 
 /** Per-rule angle range + pass/coverage stats, dumped to console at session end for review. */
 function buildRuleStats(frames: SessionFrameRecord[]) {
@@ -112,6 +114,12 @@ async function main() {
   const trackedJointIndices = [...new Set(exercise.rules.flatMap((r) => r.joints))].sort((a, b) => a - b);
   const tracking: { t: number; posed: boolean; visibility: number[] | null }[] = [];
 
+  // Raw normalized 2D landmarks, kept so the planar trunk and depth measures
+  // can be developed and validated against real capture rather than synthetic
+  // fixtures. Recorded outside the "was this frame graded" guard below, so a
+  // frame with no detected pose appears as lm: null instead of vanishing.
+  const rawFrames: RecordedFrame[] = [];
+
   // The camera runs immediately so the user can frame themselves, but nothing is
   // recorded until they press space. A real session skipped ~86% of its rule
   // checks for landmark visibility with no warning until it was already over;
@@ -137,6 +145,8 @@ async function main() {
       posed: Boolean(landmarks),
       visibility: landmarks ? trackedJointIndices.map((i) => landmarks[i].visibility) : null
     });
+
+    rawFrames.push(serializeLandmarks(result.landmarks[0], Date.now()));
 
     if (frameResult && landmarks) {
       worldLandmarksHistory.push(landmarks);
@@ -205,6 +215,13 @@ async function main() {
       ruleStats,
       angleSeries,
       tracking: { jointIndices: trackedJointIndices, frames: tracking },
+      raw: {
+        landmarkIndices: RECORDED_LANDMARK_INDICES,
+        tupleOrder: ["x", "y", "z", "visibility"],
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        frames: rawFrames
+      },
       errors: capturedErrors
     });
 

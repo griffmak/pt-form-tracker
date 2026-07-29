@@ -11,7 +11,7 @@ requires this index.
 | # | Phase | On camera | Model | Detail |
 |---|---|---|---|---|
 | [0](phase-0-kill-fabrication.md) | Kill fabricated reps; delete the wrong torso rule | No | Opus | ✅ **DONE 2026-07-28** — replayed outcomes reproduced exactly |
-| [1](phase-1-instrumentation-and-corpus.md) | Raw-landmark instrumentation; record the capture corpus | **Yes** | Sonnet | Full |
+| [1](phase-1-instrumentation-and-corpus.md) | Raw-landmark instrumentation; record the capture corpus | **Yes** | Sonnet | ✅ **DONE 2026-07-28** — six-take corpus recorded, 62/62 tests |
 | [2](phase-2-measurement-primitives.md) | Planar measurement primitives + calibration | No | Opus | Full, with thresholds marked for measurement |
 | [3](phase-3-rep-segmentation.md) | Rep segmentation on the depth signal | No | Opus | Structural |
 | [4](phase-4-confidence-gating.md) | Rep-level confidence gating | No | Opus | Structural |

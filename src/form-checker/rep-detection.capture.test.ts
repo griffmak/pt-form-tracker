@@ -1,8 +1,4 @@
 import { describe, test, expect } from "vitest";
-// The project has no @types/node and this phase adds no dependencies. This file
-// is test-only and never reaches the browser bundle, so the missing declaration
-// is suppressed rather than pulling in a types package.
-// @ts-expect-error -- no local type declarations for node:fs
 import { readFileSync } from "node:fs";
 import { detectReps } from "./rep-detection";
 

@@ -373,6 +373,95 @@ above that passes the capture-protocol tail as well, which advances at
 0.007–0.010. This constant therefore cannot substitute for
 `withinCalibratedScale`; it is a guard against a different failure mode.
 
+## Phase 3 — segmentation results (2026-07-29)
+
+Produced by `src/form-checker/depth-series.ts` + `rep-segmentation.ts` with one
+set of constants and no per-take special cases. `enter`/`exit` are absolute depth
+ratios; "bound by" says which of the two enter terms was the lower one.
+
+| take | gt | depth signal | knee signal | readyAt | p05 | p95 | range | enter | exit | bound by | jumps rejected |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `corpus-01-standing` | 0 | **0** | 0 | 277 | −0.0034 | 0.0117 | 0.0151 | — | — | gate refused | 0 |
+| `corpus-02-five-slow` | 5 | **5** | 5 | 340 | 0.0085 | 0.7756 | 0.7670 | 0.1985 | 0.1035 | cap | 0 |
+| `corpus-03-five-normal` | 5 | **5** | **0** | 390 | 0.0069 | 0.4733 | 0.4663 | 0.1969 | 0.1019 | cap | 0 |
+| `corpus-04-shallow` | 5 | **5** | **0** | 289 | −0.0259 | 0.3176 | 0.3435 | 0.1641 | 0.0691 | cap | 7 |
+| `corpus-05-degrading` | 8 | **8** | **6** | 315 | 0.0108 | 0.6792 | 0.6685 | 0.2008 | 0.1058 | cap | 0 |
+| `corpus-06-drift` | 5 | **5** | 5 | 366 | −0.0274 | 0.7445 | 0.7719 | 0.1626 | 0.0676 | cap | 0 |
+
+`corpus-01-standing` never reaches a threshold at all: its whole p05→p95 range is
+0.0151, below `MIN_REP_DEPTH_RATIO` (0.10), so the session gate refuses before any
+hysteresis runs. That is the negative control passing for the right reason.
+
+**The knee signal gets three of six wrong**, which is the measured justification
+for the whole rebuild rather than an assumed one. It reports **0** reps on
+`corpus-03-five-normal` and `corpus-04-shallow` — the legs were tracked too
+poorly to produce a 40° range at all — and **6 of 8** on `corpus-05-degrading`.
+Locked in `rep-segmentation.corpus.test.ts`; if the knee path ever matches on all
+six, this phase's premise needs revisiting.
+
+Per-rep detail (frame span, bottom frame, peak depth ratio against the
+session-global baseline):
+
+| take | reps |
+|---|---|
+| `corpus-02-five-slow` | 469–557 b514 0.7915 · 606–688 b646 0.7653 · 741–817 b780 0.7792 · 873–951 b913 0.7714 · 1003–1083 b1042 0.8014 |
+| `corpus-03-five-normal` | 410–470 b440 0.3858 · 536–602 b570 0.4804 · 658–718 b691 0.4516 · 780–834 b804 0.3840 · 891–960 b931 0.5093 |
+| `corpus-04-shallow` | 352–417 b379 0.2319 · 496–573 b529 0.3150 · 636–709 b669 0.3450 · 756–814 b780 0.2929 · 870–926 b893 0.3381 |
+| `corpus-05-degrading` | 360–440 b403 0.6512 · 504–576 b541 0.6811 · 635–702 b673 0.6916 · 757–823 b789 0.6986 · 878–946 b915 0.7407 · **1045–1080 b1059 0.2367** · **1162–1206 b1183 0.2938** · **1274–1324 b1302 0.3431** |
+| `corpus-06-drift` | 436–527 b490 0.5606 · 598–694 b651 0.5629 · 891–979 b937 0.8326 · 1042–1123 b1089 0.6830 · 1186–1267 b1231 0.8332 |
+
+### The one new mechanism, and why a relative threshold alone fails
+
+The bolded reps above are `corpus-05-degrading`'s deliberately degraded last
+three, and they are the reason Phase 3 needed a design decision rather than just
+a ported filter. Phase 0's hysteresis puts the enter threshold at a fraction of
+the session's observed range. On this take that fraction lands at 0.412, above
+all three degraded peaks (0.2367, 0.2938, 0.3431), so **a purely relative
+threshold silently drops them and the take reports 5.** The better your first reps
+are, the more of your worse reps disappear — the opposite of what a form tracker
+is for.
+
+The enter threshold is therefore the *lower* of the relative term and an absolute
+cap, `MAX_ENTER_OFFSET`:
+
+| variant | counts (takes 1–6) |
+|---|---|
+| relative only (Phase 0 behaviour) | 0 5 5 5 **5** 5 |
+| absolute cap only, 0.19 flat | 0 5 5 **4** 8 5 |
+| **min(relative, 0.19)** | **0 5 5 5 8 5** |
+
+Both terms earn their place: the "bound by" column shows the cap binds on five of
+six takes, and the relative term is what keeps the threshold proportional on a set
+whose whole range is under ~0.32.
+
+### Measured windows for the Phase 3 constants
+
+Every value sits inside a window where all six ground-truth counts hold; the
+edges are what breaks.
+
+| constant | value | window | what breaks outside |
+|---|---|---|---|
+| `MIN_REP_DEPTH_RATIO` | 0.10 | (0.0151, 0.3411] | Below: take 1's whole range is 0.0151, so a motionless body registers reps. At 0.35: take 4's range is 0.3435 and all five of its real reps disappear. |
+| `MAX_ENTER_OFFSET` | 0.19 | 0.155–0.225 | Below 0.155 the exit threshold falls with it and two of take 4's reps merge (4 reported at 0.150, 2 at 0.140). Above 0.225 take 5's shallowest genuine rep at 0.2367 is missed (7 reported at 0.230). 0.19 is the exact midpoint. |
+| `MAX_DEPTH_CHANGE_PER_FRAME` | 0.08 | > 0.0625 | The fastest genuine consecutive-frame change in the corpus is 0.0625 (take 6, frame 1111). Any lower and real descents are cut. |
+
+**Correction to the earlier warning in this file.** The "fastest genuine descent
+0.017–0.026 depth-ratio per frame" figure recorded above is a per-rep *average*
+descent rate, not a consecutive-frame maximum; frame-to-frame the corpus reaches
+0.0625. The warning's conclusion still stands unchanged — no kinematic budget can
+separate the capture-protocol tail from real reps, because the tail is *slower*
+than they are — but the number should not be read as a per-frame ceiling.
+
+**`MAX_DEPTH_CHANGE_PER_FRAME` is real but not load-bearing here.** With Phase 2's
+bounds guard and scale guard applied, an *infinite* jump budget still reproduces
+all six counts. At 0.08 the filter rejects 7 frames in the entire corpus, all of
+them in `corpus-04-shallow` frames 1086–1104, where the hips read 0.21–0.33 trunk
+lengths *above* the standing baseline on an upright subject. That burst is the
+real anomaly Phase 1 mislabelled as an out-of-bounds glitch at "frame ~1087" —
+the frames are in bounds, but the depth they imply is not. The filter is retained
+for live sessions, and must not be presented as what made the counts come out
+right.
+
 ## What this corpus does NOT yet resolve
 
 - ~~Whether take 1's drift is real postural sway or a tracking artifact.~~

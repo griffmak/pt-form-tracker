@@ -462,6 +462,65 @@ the frames are in bounds, but the depth they imply is not. The filter is retaine
 for live sessions, and must not be presented as what made the counts come out
 right.
 
+## Deviation signal — answered in Phase 3 (2026-07-29)
+
+**It works, on depth. It does not work on lean.** This was the last open product
+risk from the original design interview: the tool promises to flag a rep unlike
+the user's others, and if a user's reps are near-identical there is nothing to
+flag. `corpus-05-degrading` is the only take that can test it, because its last
+three reps were performed deliberately worse.
+
+Every number below is each rep's peak depth on the **3s rolling baseline**
+(hip-Y p10, trunk-length p90), and its signed deviation from the median of its
+own set.
+
+| take | per-rep deviation from set median | widest \|dev\| | flagged |
+|---|---|---|---|
+| `corpus-02-five-slow` | 0.0% · −4.0% · −1.9% · +1.4% · +1.7% | 4.0% | 0 |
+| `corpus-03-five-normal` | −12.8% · +6.0% · 0.0% · **−17.4%** · +12.3% | **17.4%** | 0 |
+| `corpus-04-shallow` | −14.8% · 0.0% · +4.4% · −13.6% · +2.6% | 14.8% | 0 |
+| `corpus-06-drift` | 0.0% · −4.4% · +0.5% · −13.9% · +5.2% | 13.9% | 0 |
+| `corpus-05-degrading` | −1.1% · +1.1% · +3.7% · +4.0% · +10.0% · **−65.5%** · **−58.5%** · **−50.0%** | 65.5% | **3** |
+
+The two populations do not overlap and the gap is wide: the worst spread on any
+consistent set is **17.4%** and the weakest true positive is **−50.0%**, so
+`UNUSUAL_REP_FRACTION` has a working window of **0.175–0.499**. 0.30 sits ~1.7x
+clear in both directions. All five of take 5's good reps are unflagged and all
+three degraded ones are flagged, with no per-take tuning.
+
+`corpus-04-shallow` deserves the explicit note: its reps are consistently shallow
+and **none** are flagged. Consistently shallow is not the same as one rep unlike
+the others. The deviation signal is within-set only; whether shallow is *good* is
+a different question and not one this tool answers.
+
+**The rolling baseline is confirmed on take 6 by its own numbers.** Reps 1–2
+average 0.5563 and reps 3–5 average 0.5533 — a **−0.5%** difference across the
+deliberate step toward the camera, exactly what Phase 2 predicted. With the
+session-global baseline the same five reps read 0.5617 vs 0.7829 (+39.4%), which
+would have flagged three good reps. This is why counting and comparing use
+different baselines.
+
+### Negative finding: trunk lean does not separate the degraded reps
+
+Recorded because Phase 5 must not build a lean-based flag on it. Maximum
+`leanDelta` excursion per rep, degrees:
+
+| take | per-rep max \|leanDelta\| |
+|---|---|
+| `corpus-02-five-slow` | 1.13 · 2.00 · 1.51 · 1.40 · 2.73 |
+| `corpus-03-five-normal` | 1.65 · 1.01 · 1.55 · 1.58 · 1.69 |
+| `corpus-04-shallow` | 1.79 · 1.81 · 1.83 · 2.49 · **4.33** |
+| `corpus-06-drift` | 1.74 · 1.77 · 2.56 · 2.52 · 2.56 |
+| `corpus-05-degrading` | 2.03 · 1.62 · 2.21 · 2.66 · 1.89 · **2.76** · **3.94** · **2.60** |
+
+Take 5's three degraded reps read 2.76, 3.94 and 2.60 — inside the range its own
+good reps already occupy (1.62–2.66), and *below* a good rep in
+`corpus-04-shallow` that reads 4.33. The whole corpus lives between 1.0° and
+4.3°, which is close enough to the measurement's own noise that no threshold
+separates anything. **Only depth separates.** If a lean-based flag is ever wanted
+it needs new captures with deliberately exaggerated trunk lean; nothing in this
+corpus supports one.
+
 ## What this corpus does NOT yet resolve
 
 - ~~Whether take 1's drift is real postural sway or a tracking artifact.~~
@@ -473,3 +532,14 @@ right.
   returns `null` for any frame whose four trunk landmarks leave `[0,1]`, which
   removes them without a visibility threshold. Counts per take are recorded
   under "Bounds-guard rejections" below.
+- ~~Whether a within-set deviation signal exists at all — whether the reps in a
+  real set differ enough from each other for "unlike your others" to mean
+  anything.~~ **Answered in Phase 3** — see "Deviation signal" above. It exists
+  on depth, with a 17.4% / 50.0% separation, and does **not** exist on trunk
+  lean, which the whole corpus confines to 1.0–4.3°.
+- Whether the deviation signal survives on a set where the *first* reps are the
+  bad ones. Every degrading take in this corpus degrades late, so the set median
+  is set by good reps. A set that starts badly and improves would move the
+  median, and nothing here tests it. Not a blocker for Phase 3 — rep counting
+  does not use the deviation measure — but Phase 5 should not claim the flag is
+  order-independent.

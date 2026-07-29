@@ -4,6 +4,7 @@ import { trunkSample, type TrunkSample } from "../pose/planar-measures";
 import { buildDepthSeries } from "./depth-series";
 import { detectDepthReps, type DepthRep } from "./rep-segmentation";
 import { detectReps } from "./rep-detection";
+import { rollingDepthSeries, repDeviations, type RepDeviation } from "./rep-deviation";
 
 function trunkSamplesFor(name: string): (TrunkSample | null)[] {
   const corpus = loadCorpus(name);
@@ -103,5 +104,48 @@ describe("depth-signal rep segmentation against the real corpus", () => {
       "corpus-04-shallow",
       "corpus-05-degrading"
     ]);
+  });
+});
+
+function deviationsFor(name: string): RepDeviation[] {
+  const samples = trunkSamplesFor(name);
+  const series = buildDepthSeries(samples)!;
+  const reps = detectDepthReps(series.values);
+  const rolling = rollingDepthSeries(samples, series.baseline, series.readyAt);
+  return repDeviations(reps, rolling);
+}
+
+describe("the deviation signal — the open risk this phase resolves", () => {
+  test("separates corpus-05-degrading's deliberately worse reps from its good ones", () => {
+    // The product promises to flag a rep unlike the user's others. Until reps
+    // could be segmented there was no way to know whether that signal exists.
+    // This is the only take that can test it: reps 6-8 were performed
+    // deliberately worse than reps 1-5.
+    const deviations = deviationsFor("corpus-05-degrading");
+
+    expect(deviations).toHaveLength(8);
+    expect(deviations.slice(0, 5).every((d) => !d.unusual)).toBe(true);
+    expect(deviations.slice(5).every((d) => d.unusual)).toBe(true);
+  });
+
+  test("flags nothing on the takes where every rep was the same", () => {
+    // The negative control for the flag. corpus-06-drift is included on purpose:
+    // with a session-global baseline its reps 3-5 read 39% deeper than reps 1-2
+    // for an identical movement, which would flag three good reps.
+    for (const name of ["corpus-02-five-slow", "corpus-03-five-normal", "corpus-06-drift"]) {
+      const deviations = deviationsFor(name);
+
+      expect(
+        deviations.filter((d) => d.unusual).length,
+        `${name} flagged a rep that was like all the others`
+      ).toBe(0);
+    }
+  });
+
+  test("flags nothing on the shallow take, where every rep was shallow alike", () => {
+    // Consistently shallow is not the same as one rep unlike the others. The
+    // deviation signal is within-set only; whether shallow is good is a
+    // different question and not one this tool answers.
+    expect(deviationsFor("corpus-04-shallow").filter((d) => d.unusual)).toHaveLength(0);
   });
 });

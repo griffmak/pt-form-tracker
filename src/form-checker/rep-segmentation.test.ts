@@ -158,19 +158,24 @@ describe("detectDepthReps", () => {
     expect(detectDepthReps(series)).toHaveLength(4);
   });
 
-  test("stays proportional on a set that was shallow throughout", () => {
-    // The relative term still binds here: the whole set peaks at 0.30, so the
-    // enter threshold comes from range * ENTER_FRACTION rather than the cap.
+  test("counts reps in a set shallower than the absolute enter threshold", () => {
+    // The other half of the min(): the relative term. This whole set peaks at
+    // 0.16, below MAX_ENTER_OFFSET, so a flat absolute threshold never triggers
+    // and a real — if very shallow — set reports zero reps. range * 0.6 = 0.096
+    // finds all three. Nothing in the corpus exercises this branch: every take
+    // that reaches segmentation has a range above ~0.32, so the cap is the lower
+    // term on all of them. This is the test that keeps the branch honest.
     const series = [
       ...standing(60),
-      ...rep(0.3),
+      ...rep(0.16),
       ...standing(30),
-      ...rep(0.3),
+      ...rep(0.16),
       ...standing(30),
-      ...rep(0.3),
+      ...rep(0.16),
       ...standing(60)
     ];
 
     expect(detectDepthReps(series)).toHaveLength(3);
   });
+
 });

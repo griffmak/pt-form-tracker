@@ -2,6 +2,9 @@ import type { SessionFrameRecord } from "../storage/session-store";
 import { summarizeCoverage, type FrameResult } from "../form-checker/form-checker";
 import { detectReps } from "../form-checker/rep-detection";
 import type { ExerciseDefinition } from "../exercise-library/types";
+import type { TrunkSample } from "../pose/planar-measures";
+import { buildDepthSeries } from "../form-checker/depth-series";
+import { detectDepthReps } from "../form-checker/rep-segmentation";
 
 export interface SessionSummary {
   /** Number of complete reps detected in the session. */
@@ -30,26 +33,34 @@ export interface SessionSummary {
  */
 export function summarizeSession(
   frames: SessionFrameRecord[],
-  exercise: ExerciseDefinition
+  exercise: ExerciseDefinition,
+  trunkSamples?: (TrunkSample | null)[]
 ): SessionSummary {
   const frameResults: FrameResult[] = frames.map((f) => ({ ruleResults: f.ruleResults }));
   const { evaluatedCount, totalCount } = summarizeCoverage(frameResults);
   const coverageRate = totalCount === 0 ? 0 : evaluatedCount / totalCount;
 
-  const signalAngles = frames.map((f) => {
-    const signal = f.ruleResults.find((r) => r.ruleName === exercise.repSignalRuleName);
-    return signal?.evaluated ? signal.angleDegrees : null;
-  });
+  // Two rep signals, deliberately both alive through Phase 3. The depth signal
+  // is the one the rebuild is moving to — the knee has cleared a 0.5 visibility
+  // threshold on as little as 59% of frames across captures, while shoulder and
+  // hip have tracked at 99-100% in every one, and on the six-take corpus the
+  // knee path gets three of six rep counts wrong where the depth path gets all
+  // six right. Running both on the same takes is how we found that out rather
+  // than assuming it. Removing the knee path is Phase 5.
+  const bottomIndexes = trunkSamples
+    ? depthRepBottoms(trunkSamples)
+    : kneeRepBottoms(frames, exercise);
 
-  const reps = detectReps(signalAngles);
-  if (reps.length === 0) {
+  if (bottomIndexes.length === 0) {
     return { repCount: 0, passRate: null, coverageRate };
   }
 
   let passedAtBottoms = 0;
   let evaluatedAtBottoms = 0;
-  for (const rep of reps) {
-    for (const rule of frames[rep.bottomIndex].ruleResults) {
+  for (const bottomIndex of bottomIndexes) {
+    const frame = frames[bottomIndex];
+    if (frame === undefined) continue;
+    for (const rule of frame.ruleResults) {
       if (!rule.evaluated) continue;
       evaluatedAtBottoms += 1;
       if (rule.passed) passedAtBottoms += 1;
@@ -57,10 +68,30 @@ export function summarizeSession(
   }
 
   return {
-    repCount: reps.length,
+    repCount: bottomIndexes.length,
     passRate: evaluatedAtBottoms === 0 ? null : passedAtBottoms / evaluatedAtBottoms,
     coverageRate
   };
+}
+
+/** Rep bottoms from the exercise's knee-angle rep signal. */
+function kneeRepBottoms(frames: SessionFrameRecord[], exercise: ExerciseDefinition): number[] {
+  const signalAngles = frames.map((f) => {
+    const signal = f.ruleResults.find((r) => r.ruleName === exercise.repSignalRuleName);
+    return signal?.evaluated ? signal.angleDegrees : null;
+  });
+  return detectReps(signalAngles).map((rep) => rep.bottomIndex);
+}
+
+/**
+ * Rep bottoms from the hip-depth signal. Returns nothing when the run never
+ * produced a usable standing baseline — a refusal to measure, which is distinct
+ * from measuring zero reps.
+ */
+function depthRepBottoms(trunkSamples: (TrunkSample | null)[]): number[] {
+  const series = buildDepthSeries(trunkSamples);
+  if (series === null) return [];
+  return detectDepthReps(series.values).map((rep) => rep.bottomIndex);
 }
 
 /** Renders "3 reps - 83% good form" style text into a container. */

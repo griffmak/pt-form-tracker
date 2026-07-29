@@ -427,12 +427,45 @@ cap, `MAX_ENTER_OFFSET`:
 | variant | counts (takes 1–6) |
 |---|---|
 | relative only (Phase 0 behaviour) | 0 5 5 5 **5** 5 |
-| absolute cap only, 0.19 flat | 0 5 5 **4** 8 5 |
+| absolute cap only, 0.19 flat | 0 5 5 5 8 5 |
 | **min(relative, 0.19)** | **0 5 5 5 8 5** |
 
-Both terms earn their place: the "bound by" column shows the cap binds on five of
-six takes, and the relative term is what keeps the threshold proportional on a set
-whose whole range is under ~0.32.
+**The corpus does not exercise the relative term, and an earlier draft of this
+section wrongly claimed it did.** Mutation testing caught it: replacing
+`min(range * 0.6, 0.19)` with a flat 0.19 changes nothing on any of the six
+takes, because every take that reaches segmentation has a range above ~0.317, so
+the cap is the lower term on all of them — exactly what the "bound by" column
+above shows.
+
+The relative term is kept anyway, for a case the corpus does not contain: a set
+whose whole range is between `MIN_REP_DEPTH_RATIO` (0.10) and ~0.317 passes the
+session gate but never reaches a flat 0.19 threshold, so it would be counted as
+zero reps. Since take 4's individual reps peak at only 0.23–0.35, a user slightly
+shallower than that take is not a hypothetical. That branch is covered by a
+synthetic unit test (`counts reps in a set shallower than the absolute enter
+threshold`, a set peaking at 0.16) rather than by the corpus, and the test is
+labelled as such.
+
+### Mutation results, including the one that survived
+
+Every load-bearing decision was mutated and the named test confirmed to fail:
+dropping the absolute cap (5 tests), flipping the enter comparison (7), flipping
+the bottom-of-rep comparison to a minimum (2), reading `null` as zero depth (1),
+loosening `MIN_REP_DEPTH_RATIO` to 0.01 (4), inverting the rolling hip percentile
+to p90 (3), widening the rolling window to 10s (1), and using the mean instead of
+the median for the set reference (2).
+
+**One mutation survives: removing the `rejectImplausibleDepthJumps` call from
+`detectDepthReps` breaks nothing.** Recorded rather than papered over. It follows
+from the finding already above — the filter rejects only 7 frames in the whole
+corpus and none of them could form a rep — and an attempt to write a
+discriminating test failed for an instructive reason: because the budget scales
+with the measurement gap, a sustained glitch plateau is *correctly* accepted once
+~12 frames have been rejected, since after 12 frames of no measurement a body
+really could be anywhere. So no synthetic glitch both survives 18 frames and gets
+rejected. The filter's own behaviour is covered by six direct unit tests; what is
+uncovered is only its wiring into the segmenter. Phase 4 should decide whether a
+filter with no failing case on real data belongs in the pipeline at all.
 
 ### Measured windows for the Phase 3 constants
 

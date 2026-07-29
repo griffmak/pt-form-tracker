@@ -82,12 +82,18 @@ enterOffset = min(range * ENTER_FRACTION, MAX_ENTER_OFFSET)
 exitOffset  = enterOffset * (EXIT_FRACTION / ENTER_FRACTION)   // = half
 ```
 
-The relative term binds only when the session range is below ~0.32 (a shallow
+The relative term binds only when the session range is below ~0.317 (a shallow
 set), keeping the threshold proportional to what the user actually did. The
 absolute cap binds on every deeper set, so a rep is "an excursion past a minimum
-real depth", not "an excursion past 60% of your best rep". Both terms earn their
-place, and the corpus confirms it: dropping the absolute cap gives `0 5 5 5 5 5`,
-dropping the relative term and using 0.19 flat gives `0 5 5 4 8 5`.
+real depth", not "an excursion past 60% of your best rep".
+
+Dropping the absolute cap gives `0 5 5 5 5 5` — the corpus proves that term.
+Dropping the *relative* term and using 0.19 flat gives `0 5 5 5 8 5`, unchanged:
+no take in the corpus has a range low enough for it to bind. It is kept for a
+case the corpus does not contain — a set whose range clears
+`MIN_REP_DEPTH_RATIO` but never reaches 0.19 would otherwise be counted as zero
+reps — and is covered by a synthetic unit test rather than by the corpus. Say so
+in the comment; do not claim the corpus measured it.
 
 ### `MAX_DEPTH_CHANGE_PER_FRAME` is real but not load-bearing here
 
@@ -1637,11 +1643,12 @@ revert:
 | mutation | must fail |
 |---|---|
 | Remove the `Math.min(..., MAX_ENTER_OFFSET)` cap | `corpus-05-degrading segments to its ground-truth 8 reps`; `counts a shallower rep in the same set as the deep ones` |
-| Use `MAX_ENTER_OFFSET` flat, dropping `range * ENTER_FRACTION` | `corpus-04-shallow segments to its ground-truth 5 reps` |
+| Use `MAX_ENTER_OFFSET` flat, dropping `range * ENTER_FRACTION` | `counts reps in a set shallower than the absolute enter threshold` (synthetic — no corpus take exercises this branch) |
 | Flip `depth > enterThreshold` to `<` | every squatting take's count |
 | Flip `depth > bottomDepth` to `<` | `reports the deepest point as the maximum, not the minimum` |
 | Treat `null` as 0 instead of `continue` | `does not end a rep because the tracker blinked at the bottom` |
 | Set `MIN_REP_DEPTH_RATIO = 0.01` | `corpus-01-standing segments to its ground-truth 0 reps` |
+| Remove the `rejectImplausibleDepthJumps` call from `detectDepthReps` | **nothing — this mutation survives.** Expected, and recorded in the manifest rather than fixed with a contrived test: the filter rejects 7 frames in the whole corpus and none could form a rep. Do not spend time trying to make it fail. |
 | Swap hip-Y p10 for p90 in `rollingDepthSeries` | `separates corpus-05-degrading's deliberately worse reps` |
 | Set `ROLLING_BASELINE_FRAMES = 600` (10s) | `flags nothing on the takes where every rep was the same` (corpus-06-drift) |
 | Use mean instead of median in `repDeviations` | `separates corpus-05-degrading's deliberately worse reps` |

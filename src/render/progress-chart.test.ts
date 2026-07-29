@@ -3,6 +3,7 @@ import { summarizeSession, renderProgressSummary } from "./progress-chart";
 import { squat } from "../exercise-library/squat";
 import type { SessionFrameRecord } from "../storage/session-store";
 import type { RuleResult } from "../form-checker/form-checker";
+import type { TrunkSample } from "../pose/planar-measures";
 
 const KNEE = "Knee bend depth";
 
@@ -139,5 +140,80 @@ describe("renderProgressSummary", () => {
 
     expect(container.textContent).toContain("3 reps");
     expect(container.textContent).toContain("83%");
+  });
+});
+
+/**
+ * Frames whose rep-signal rule never evaluates, so the only way a rep can be
+ * found is through the depth signal. A second always-passing rule stands in for
+ * the form checks that do still evaluate.
+ */
+function unevaluatedFrames(count: number): SessionFrameRecord[] {
+  return Array.from({ length: count }, (_, i) => ({
+    sessionId: "s1",
+    timestamp: i,
+    ruleResults: [
+      { ruleName: squat.repSignalRuleName, evaluated: false, passed: false, angleDegrees: null },
+      { ruleName: "Trunk lean", evaluated: true, passed: true, angleDegrees: 8 }
+    ]
+  }));
+}
+
+/** 120 still frames, then `reps` descents to 0.6 trunk lengths and back. */
+function trunkSamplesWithReps(reps: number): (TrunkSample | null)[] {
+  const still = (n: number) =>
+    Array.from({ length: n }, () => ({
+      leanDegrees: 2,
+      hipY: 0.5,
+      trunkLength: 0.3,
+      minVisibility: 0.99
+    }));
+  const descent = Array.from({ length: 30 }, (_, i) => ({
+    leanDegrees: 2,
+    hipY: 0.5 + (0.18 * (i + 1)) / 30,
+    trunkLength: 0.3,
+    minVisibility: 0.99
+  }));
+  const out: (TrunkSample | null)[] = [...still(120)];
+  for (let r = 0; r < reps; r++) {
+    out.push(...descent, ...[...descent].reverse(), ...still(30));
+  }
+  return out;
+}
+
+describe("summarizeSession with the depth signal", () => {
+  test("still uses the knee-angle path when no trunk samples are supplied", () => {
+    const summary = summarizeSession(repFrames(115), squat);
+
+    expect(summary.repCount).toBeGreaterThan(0);
+  });
+
+  test("counts reps from the depth signal when trunk samples are supplied", () => {
+    const samples = trunkSamplesWithReps(3);
+    const summary = summarizeSession(unevaluatedFrames(samples.length), squat, samples);
+
+    expect(summary.repCount).toBe(3);
+  });
+
+  test("grades the rules at the depth-segmented rep bottoms", () => {
+    const samples = trunkSamplesWithReps(3);
+    const summary = summarizeSession(unevaluatedFrames(samples.length), squat, samples);
+
+    // Every frame's "Trunk lean" rule passes, and the rep-signal rule never
+    // evaluates — so the score comes from the depth-segmented bottoms only.
+    expect(summary.passRate).toBe(1);
+  });
+
+  test("reports no reps when the depth signal never calibrates", () => {
+    const drifting = Array.from({ length: 300 }, (_, i) => ({
+      leanDegrees: 2,
+      hipY: 0.2 + i * 0.01,
+      trunkLength: 0.3,
+      minVisibility: 0.99
+    }));
+    const summary = summarizeSession(unevaluatedFrames(300), squat, drifting);
+
+    expect(summary.repCount).toBe(0);
+    expect(summary.passRate).toBeNull();
   });
 });

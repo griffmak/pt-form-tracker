@@ -237,6 +237,142 @@ correctly discarded. The done criterion is therefore restated as **>95% of
 frames measured up to the last completed rep**, which all six takes satisfy at
 100%. See the corpus test for the assertion as written.
 
+## The capture-protocol tail — a third artifact, and the one that mattered most
+
+Phase 2's negative-control test initially failed hard: `corpus-01-standing`, 30
+seconds of confirmed stillness, produced a peak depth reading of **1.096** —
+more apparent descent than any genuine squat in the corpus. The plan is explicit
+that this is not a threshold problem, so it was traced rather than tuned away.
+
+In **every** take, the frames where trunk length exceeds 1.6× baseline form a
+single contiguous run at the very end, ~84–92 frames (~1.4s) long:
+
+| take | run | ratio inside the run (min / median / max) |
+|---|---|---|
+| `corpus-01-standing` | 1388–1473 | 1.567 / 2.215 / 2.635 |
+| `corpus-02-five-slow` | 1207–1290 | 1.603 / 2.230 / 2.563 |
+| `corpus-03-five-normal` | 1061–… | — |
+| `corpus-04-shallow` | 1044–… | — |
+| `corpus-05-degrading` | 1438–1529 | 1.606 / 2.056 / 2.325 |
+| `corpus-06-drift` | 1292–1356, 1412–1422 | — |
+
+This is not a tracking glitch. It is **the user walking back to the laptop to
+stop the recording.** Trunk length grows 2.6× because he is genuinely much
+closer to the camera; take 1's "depth 1.096" is him bending toward the keyboard.
+Real movement, correctly imaged, but not part of the set.
+
+**Neither existing guard catches it, and one of them provably cannot.** A
+visibility threshold does not (visibility stays high throughout). A kinematic
+plausibility filter — the Phase 0 `rejectImplausibleJumps` approach — does not
+and *cannot*: the artifact advances at 0.007–0.010 depth-ratio per frame, while
+`corpus-06-drift`'s **genuine** reps move at 0.017–0.026. The real reps are
+faster than the artifact, so any per-frame budget loose enough to pass real
+squats passes this too. Only body scale separates them, because a body does not
+change size.
+
+### `withinCalibratedScale` — the guard added in response
+
+Bounds on `sample.trunkLength / baseline.trunkLength`, in
+`src/form-checker/calibration.ts`. Both measured:
+
+| bound | value | derivation |
+|---|---|---|
+| `MIN_SCALE_RATIO` | 0.72 | Smallest genuine ratio in the corpus is 0.750, at the bottom of `corpus-02-five-slow`'s deepest reps (the trunk pitches toward the camera plane and the chord foreshortens). 0.72 leaves margin. Never binds on a standing take — take 1's minimum is 0.986. |
+| `MAX_SCALE_RATIO` | 1.55 | Sits inside a measured gap: the largest **sustained legitimate** ratio anywhere is **1.5406** (`corpus-06-drift`'s plateau after the deliberate step, during which all five of its reps occur), and the smallest ratio inside any terminal approach run is **1.567** (take 1). |
+
+The gap is narrow — 1.5406 to 1.567 — and this is recorded as a risk rather than
+a solved problem. Widening the bound to 1.7 restores the false 0.94 depth
+reading on the standing take; the test suite fails if either bound moves. A user
+who steps further toward the camera than Griffin did would have legitimate
+frames rejected. The durable fix is the rolling baseline discussed below.
+
+Cost where it must not bind: within each take's measurable region the guard
+keeps **99.6–100%** of frames.
+
+## Drift finding — required reading for Phase 3
+
+**Phase 3 must not re-litigate this.** The question was whether a session-global
+baseline suffices, tested on `corpus-06-drift`, where the user stepped toward
+the camera after rep 2 and stayed there. Rep peaks, session-global baseline:
+
+| rep | frame | peak depth |
+|---|---|---|
+| 1 | 490 | 0.5606 |
+| 2 | 651 | 0.5629 |
+| 3 | 937 | 0.8326 |
+| 4 | 1089 | 0.6830 |
+| 5 | 1231 | 0.8332 |
+
+Reps 1–2 (before the step) mean 0.5617; reps 3–5 (after) mean 0.7829 — a
+**39.4% inflation** from an identical movement at a different distance. The
+plan's 20% line is exceeded, so a session-global baseline is **inadequate**.
+
+**The plan's proposed replacement is also inadequate.** Phase 2 was told to use
+"the 10th percentile of hip Y over a trailing ~10s window" if the answer came
+back this way. Measured, that gets 34.4% — barely an improvement — and if trunk
+length is rolled over the same 10s window it gets *worse*, 69.0%. A 10-second
+window straddles the step, so its percentiles are drawn from both distances at
+once.
+
+Both terms must roll, over a **short** window:
+
+| strategy | reps found | before / after | diff |
+|---|---|---|---|
+| session-global | 5 | 0.5617 / 0.7829 | **39.4%** |
+| plan's proposal: hip-Y p10 @10s, fixed trunk length | 5 | 0.5877 / 0.7897 | 34.4% |
+| hip-Y p10 + trunk-length p90 @10s | 5 | 0.3271 / 0.5527 | 69.0% |
+| hip-Y p10 + trunk-length p90 @5s | 5 | 0.5078 / 0.5543 | 9.2% |
+| **hip-Y p10 + trunk-length p90 @3s (180 frames)** | 5 | 0.5562 / 0.5533 | **−0.5%** |
+
+**Answer for Phase 3, and it has two parts depending on what the baseline is
+used for:**
+
+1. **For rep counting, the session-global baseline is sufficient.** All six takes
+   separate cleanly with it (see the table below), and every strategy above
+   found all 5 reps in take 6. Use session-global plus
+   `withinCalibratedScale`; do not add rolling-baseline complexity to
+   segmentation.
+2. **For comparing reps against each other — the deviation/flagging feature —
+   session-global is not usable.** It would report take 6's reps 3–5 as 39%
+   deeper than reps 1–2 when the movement was the same, which is precisely the
+   kind of confident wrong number this rebuild exists to eliminate. Any
+   within-set comparison must use the rolling baseline: **hip-Y 10th percentile
+   and trunk-length 90th percentile over a trailing 180 frames (3s)**. Percentile
+   direction matters and is easy to invert: hip-Y grows downward, so the 10th
+   percentile is the *highest* hip position, and trunk length is *longest* when
+   standing upright, so the 90th percentile is the standing scale. The window
+   must be short enough not to straddle a distance change and long enough to
+   contain a standing moment within a rep cycle; 3s satisfies both here.
+
+## Phase 3 input numbers — measured, in the measurable region
+
+Region is `readyAt` → start of that take's terminal approach run, with
+`withinCalibratedScale` applied.
+
+| take | ground truth | session-global p95 / max | 3s-rolling p95 / max |
+|---|---|---|---|
+| `corpus-01-standing` | 0 | 0.0117 / **0.0383** | 0.0228 / 0.0310 |
+| `corpus-02-five-slow` | 5 | 0.7750 / 0.8014 | 0.7825 / 0.8038 |
+| `corpus-03-five-normal` | 5 | 0.4733 / 0.5093 | 0.4406 / 0.4768 |
+| `corpus-04-shallow` | 5 | 0.3184 / **0.3450** | 0.2676 / 0.2814 |
+| `corpus-05-degrading` | 8 | 0.6787 / 0.7407 | 0.6682 / 0.7289 |
+| `corpus-06-drift` | 5 | 0.7437 / 0.8332 | 0.5537 / 0.5985 |
+
+**`MIN_REP_DEPTH_RATIO` is derivable and the two populations do not overlap.**
+Phase 3's precondition was that if the shallow take and the standing take
+overlap, the measure cannot distinguish a shallow rep from standing and that is
+a finding rather than a threshold to tune. They do not overlap: standing peaks
+at **0.0383**, the shallow take at **0.3450** — a factor of **9.0**. Phase 3
+should derive the constant from the *shallowest individual rep* in
+`corpus-04-shallow`, not from that take's maximum, which Phase 3 must measure
+per-rep once it can segment.
+
+**`MAX_DEPTH_CHANGE_PER_FRAME` — a warning.** The fastest genuine descent
+measured is 0.017–0.026 depth-ratio per frame (`corpus-06-drift`). Any budget
+above that passes the capture-protocol tail as well, which advances at
+0.007–0.010. This constant therefore cannot substitute for
+`withinCalibratedScale`; it is a guard against a different failure mode.
+
 ## What this corpus does NOT yet resolve
 
 - ~~Whether take 1's drift is real postural sway or a tracking artifact.~~

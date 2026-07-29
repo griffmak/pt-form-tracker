@@ -1,5 +1,11 @@
 import { describe, test, expect } from "vitest";
-import { assessCalibration, depthRatio, leanDelta, type Baseline } from "./calibration";
+import {
+  assessCalibration,
+  depthRatio,
+  leanDelta,
+  withinCalibratedScale,
+  type Baseline
+} from "./calibration";
 import type { TrunkSample } from "../pose/planar-measures";
 
 function still(count: number, overrides: Partial<TrunkSample> = {}): TrunkSample[] {
@@ -124,6 +130,34 @@ describe("depthRatio", () => {
     );
 
     expect(far).toBeCloseTo(near, 6);
+  });
+});
+
+describe("withinCalibratedScale", () => {
+  test("accepts a body at the scale it calibrated at", () => {
+    expect(withinCalibratedScale(sample(), baseline)).toBe(true);
+  });
+
+  test("accepts the foreshortening of the corpus's deepest genuine squat", () => {
+    // corpus-02-five-slow bottoms out at a trunk-length ratio of 0.750.
+    expect(withinCalibratedScale(sample({ trunkLength: 0.3 * 0.75 }), baseline)).toBe(true);
+  });
+
+  test("accepts the deliberate step toward the camera in corpus-06-drift", () => {
+    // That take's post-step plateau tops out at ratio 1.5406, and all five of
+    // its reps happen there. Rejecting it would discard three real reps.
+    expect(withinCalibratedScale(sample({ trunkLength: 0.3 * 1.5406 }), baseline)).toBe(true);
+  });
+
+  test("rejects the walk-back-to-the-laptop tail that ends every take", () => {
+    // Lowest ratio inside any terminal approach run is 1.567
+    // (corpus-01-standing); they climb past 2.0 and peak near 2.6.
+    expect(withinCalibratedScale(sample({ trunkLength: 0.3 * 1.567 }), baseline)).toBe(false);
+    expect(withinCalibratedScale(sample({ trunkLength: 0.3 * 2.635 }), baseline)).toBe(false);
+  });
+
+  test("rejects a body imaged far smaller than it calibrated at", () => {
+    expect(withinCalibratedScale(sample({ trunkLength: 0.3 * 0.5 }), baseline)).toBe(false);
   });
 });
 

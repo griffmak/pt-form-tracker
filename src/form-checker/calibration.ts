@@ -172,3 +172,60 @@ export function depthRatio(sample: TrunkSample, baseline: Baseline): number {
 export function leanDelta(sample: TrunkSample, baseline: Baseline): number {
   return sample.leanDegrees - baseline.leanDegrees;
 }
+
+/**
+ * Bounds on how far the imaged body scale may drift from the calibrated
+ * baseline before measurements against that baseline stop meaning anything.
+ *
+ * This is the validity condition of baseline subtraction, not a tuned filter.
+ * `depthRatio` divides a hip displacement by the baseline's trunk length; if the
+ * user has walked toward the camera, the same real descent images as a larger
+ * displacement while the denominator is stale, and depth inflates.
+ *
+ * Both bounds are measured, and the upper one sits inside a real gap:
+ *
+ * - Lower, 0.72. The deepest genuine squats foreshorten the shoulder->hip chord
+ *   because the trunk pitches toward the camera plane. The smallest genuine
+ *   ratio in the corpus is 0.750, at the bottom of corpus-02-five-slow's reps.
+ *   0.72 leaves margin below it. Never binds on a standing take
+ *   (corpus-01-standing's minimum is 0.986).
+ * - Upper, 1.55. Sits between the largest sustained LEGITIMATE ratio anywhere in
+ *   the corpus — 1.5406, corpus-06-drift's plateau after the user deliberately
+ *   stepped toward the camera, during which all five of its reps occur — and the
+ *   smallest ratio inside any of the terminal runs this guard exists to remove
+ *   (1.567 in corpus-01-standing, 1.603 in corpus-02, 1.606 in corpus-05).
+ *
+ * What it removes: every take ends with an ~84-92 frame (~1.4s) run in which
+ * the trunk-length ratio climbs past 2.0 and peaks near 2.6. That is not a
+ * tracking glitch — it is the user walking back to the laptop to stop the
+ * recording, which is genuine movement that is not part of the set. In
+ * corpus-01-standing, 30 seconds of confirmed stillness, that tail alone
+ * produced a depth reading of 1.096: more apparent descent than any real squat
+ * in the corpus, from a stationary body. Removing it drops that take's peak to
+ * 0.0383 while leaving every other take's peak untouched.
+ *
+ * Note that neither of the two guards already in the codebase catches this. A
+ * visibility threshold does not (visibility stays high). A kinematic jump filter
+ * does not, and cannot: the artifact advances at 0.007-0.010 depth-ratio per
+ * frame while corpus-06-drift's GENUINE reps move at 0.017-0.026, so any budget
+ * loose enough to pass real squats passes this too. Only body scale separates
+ * them, because a body does not change size.
+ *
+ * Costs almost nothing where it must not bind: within the measurable region of
+ * every take it keeps 99.6-100% of frames.
+ */
+const MIN_SCALE_RATIO = 0.72;
+const MAX_SCALE_RATIO = 1.55;
+
+/**
+ * Whether this frame's body scale is close enough to the calibrated baseline for
+ * baseline-relative measures to be meaningful.
+ *
+ * Callers treat a false as "not evaluated this frame" — the same convention as a
+ * null trunk sample. It must never be read as zero depth, and must never end an
+ * in-progress rep.
+ */
+export function withinCalibratedScale(sample: TrunkSample, baseline: Baseline): boolean {
+  const ratio = sample.trunkLength / baseline.trunkLength;
+  return ratio >= MIN_SCALE_RATIO && ratio <= MAX_SCALE_RATIO;
+}

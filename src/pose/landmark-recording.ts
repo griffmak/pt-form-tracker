@@ -29,6 +29,24 @@ export interface RecordedFrame {
  */
 export const RECORDED_LANDMARK_INDICES = [11, 12, 23, 24, 25, 26, 27, 28];
 
+/**
+ * Position within a recorded frame's `lm` array. NOT the MediaPipe landmark
+ * index — the recording stores a subset, so landmark 23 lives at position 2.
+ *
+ * Defined here, beside RECORDED_LANDMARK_INDICES, because the two must agree.
+ * Anything reading a recorded frame imports this rather than declaring its own.
+ */
+export const LM_INDEX = {
+  leftShoulder: 0,
+  rightShoulder: 1,
+  leftHip: 2,
+  rightHip: 3,
+  leftKnee: 4,
+  rightKnee: 5,
+  leftAnkle: 6,
+  rightAnkle: 7
+} as const;
+
 const DECIMALS = 4;
 const SCALE = 10 ** DECIMALS;
 

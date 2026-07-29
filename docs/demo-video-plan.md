@@ -62,8 +62,17 @@ in the order it should land.
 Every number in that narration is measured and reproducible, so a viewer who
 digs will not find it hollow:
 
-- Two reps from a standing body, the original bug —
-  `docs/superpowers/plans/2026-07-28-measurement-rebuild/phase-0-kill-fabrication.md`.
+- Two reps from a standing body, the original bug. **Verified 2026-07-29 against
+  the capture itself, not the write-up:**
+  `.claude-test-artifacts/session-2026-07-28-standing-test.json` stores, in the
+  summary written by the code that was running at the time, `repCount: 2` and
+  `passRate: 0.5` over 1554 frames — 25.9 seconds of standing still. Knee angle
+  ranged 66.6°–179.1°; frame 42 reads 141.6° and frame 43 reads 66.6°, a 75°
+  change in 1/60s (~4500°/s) during tracker convergence, and the old code took its
+  scale from the raw min and max of the series, so that one frame defined "deep"
+  for the whole session. **Use the 50% form score on camera as well as the rep
+  count** — "50% good form" over a video of a man standing motionless is the
+  sharper hook of the two, and it is in the file.
 - Knees and ankles tracked poorly, shoulders and hips at 99–100% —
   `corpus-manifest.md`, per-take table.
 - Six ground-truth counts, and the knee signal getting three of six wrong —

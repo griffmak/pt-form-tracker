@@ -456,15 +456,28 @@ to p90 (3), widening the rolling window to 10s (1), and using the mean instead o
 the median for the set reference (2).
 
 **One mutation survives: removing the `rejectImplausibleDepthJumps` call from
-`detectDepthReps` breaks nothing.** Recorded rather than papered over. It follows
-from the finding already above — the filter rejects only 7 frames in the whole
-corpus and none of them could form a rep — and an attempt to write a
-discriminating test failed for an instructive reason: because the budget scales
-with the measurement gap, a sustained glitch plateau is *correctly* accepted once
-~12 frames have been rejected, since after 12 frames of no measurement a body
-really could be anywhere. So no synthetic glitch both survives 18 frames and gets
-rejected. The filter's own behaviour is covered by six direct unit tests; what is
-uncovered is only its wiring into the segmenter. Phase 4 should decide whether a
+`detectDepthReps` breaks nothing.** Recorded rather than papered over. Both halves
+of the explanation were verified by instrumenting the filter's boundary rather
+than reasoned about:
+
+- The 7 rejected frames are `corpus-04-shallow` frames 1086, 1087, 1090, 1095,
+  1097, 1099 and 1104, at depths −0.1352 to −0.3279 — hips *above* the standing
+  baseline. None falls inside any detected rep, in any take, so none could create
+  or break one.
+- The filter is nonetheless not inert. Removing those 7 frames moves that take's
+  p05 from −0.0370 to −0.0259, shifting its enter and exit thresholds by 0.011. It
+  changes the calibration reference; it does not change a rep boundary. "No effect
+  on rep counts" is the accurate claim, not "no effect".
+- The attempt to write a discriminating test failed for an instructive reason,
+  confirmed by running it rather than predicting it: because the budget scales with
+  the measurement gap, a 20-frame plateau at 0.9 is rejected only up to index 71 —
+  gap 12, budget 0.96 — and accepted from there, because after 12 frames of no
+  measurement a body really could be anywhere. The plateau registers as one rep
+  either way. No synthetic glitch both survives `MIN_REP_FRAMES` and stays
+  rejected.
+
+The filter's own behaviour is covered by six direct unit tests; what is uncovered
+is only its wiring into the segmenter. Phase 4 should decide whether a
 filter with no failing case on real data belongs in the pipeline at all.
 
 ### Measured windows for the Phase 3 constants

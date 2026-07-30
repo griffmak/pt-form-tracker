@@ -54,6 +54,21 @@
         font-weight: bold;
         margin-top: 4px;
       }
+      #calibration-readout {
+        font-size: 15px;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-top: none;
+        background: #f6f6f6;
+      }
+      #calibration-readout.ready {
+        background: #eef7ee;
+        border-color: #cfe3cf;
+      }
+      #calibration-readout.not-ready {
+        background: #fdeded;
+        border-color: #f3c9c9;
+      }
       #privacy-note {
         font-size: 14px;
         background: #eef7ee;
@@ -100,6 +115,7 @@
         <h2>Setup</h2>
         <div id="framing-instructions"></div>
         <div id="framing-readout">Starting camera…</div>
+        <div id="calibration-readout">Waiting for framing…</div>
       </section>
       <section>
         <h2>Form ranges (adjust for your body)</h2>

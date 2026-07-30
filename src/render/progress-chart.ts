@@ -1,114 +1,95 @@
-import type { SessionFrameRecord } from "../storage/session-store";
-import { summarizeCoverage, type FrameResult } from "../form-checker/form-checker";
-import { detectReps } from "../form-checker/rep-detection";
-import type { ExerciseDefinition } from "../exercise-library/types";
 import type { TrunkSample } from "../pose/planar-measures";
 import { buildDepthSeries } from "../form-checker/depth-series";
-import { detectDepthReps } from "../form-checker/rep-segmentation";
+import { detectDepthReps, type DepthRep } from "../form-checker/rep-segmentation";
+import { leanDelta } from "../form-checker/calibration";
+
+/** One rep's depth and lean, both already expressed as deltas from the user's own baseline. */
+export interface RepSummary {
+  /** Hip descent at this rep's deepest point, in units of the user's own trunk length. ~0 = standing. */
+  bottomDepthRatio: number;
+  /** Trunk-lean change from standing posture at this rep's deepest point, in degrees. */
+  leanDeltaDegrees: number;
+}
 
 export interface SessionSummary {
   /** Number of complete reps detected in the session. */
   repCount: number;
+  /** One entry per detected rep, in order. Empty when repCount is 0. */
+  reps: RepSummary[];
   /**
-   * 0-1, among rules evaluated at rep bottoms only. Null when no reps were
-   * detected — there is no form score to report, which is distinct from a
-   * score of zero.
-   */
-  passRate: number | null;
-  /**
-   * 0-1, rule-checks evaluated / attempted across the whole session. A low
-   * value means landmarks were rarely visible enough to measure — a framing
-   * problem, not a form problem.
+   * 0-1, fraction of the session with a usable trunk measurement (shoulders and
+   * hips in frame and in a plausible position). Low means the camera rarely had a
+   * clear enough view to measure — a framing problem, not a form problem.
    */
   coverageRate: number;
 }
 
 /**
- * Grades a session at each rep's deepest point rather than on every frame.
- *
- * Per-frame grading asks "are you at the bottom of a squat right now" of every
- * frame in the session, so standing, descending and ascending all count as
- * failures and a set of clean reps still scores near zero. Reps are segmented
- * from the exercise's rep-signal joint and only those bottom frames are graded.
+ * Grades a session entirely from the depth signal (Phase 2-3). The knee-angle path
+ * (relocated to tests/knee-rep-baseline.ts in Task 3) is retired from production: it got
+ * three of six corpus ground-truth rep counts wrong where this signal gets all six right
+ * (corpus-manifest.md), and its "% good form" score was computed from an absolute-degree
+ * rule the design forbids presenting as a claim (see the forbidden-claims checklist in
+ * the measurement rebuild spec). Every number this function returns is a delta from the
+ * user's own standing baseline, never an absolute angle.
  */
-export function summarizeSession(
-  frames: SessionFrameRecord[],
-  exercise: ExerciseDefinition,
-  trunkSamples?: (TrunkSample | null)[]
-): SessionSummary {
-  const frameResults: FrameResult[] = frames.map((f) => ({ ruleResults: f.ruleResults }));
-  const { evaluatedCount, totalCount } = summarizeCoverage(frameResults);
-  const coverageRate = totalCount === 0 ? 0 : evaluatedCount / totalCount;
+export function summarizeSession(trunkSamples: (TrunkSample | null)[]): SessionSummary {
+  const measured = trunkSamples.filter((s): s is TrunkSample => s !== null).length;
+  const coverageRate = trunkSamples.length === 0 ? 0 : measured / trunkSamples.length;
 
-  // Two rep signals, deliberately both alive through Phase 3. The depth signal
-  // is the one the rebuild is moving to — the knee has cleared a 0.5 visibility
-  // threshold on as little as 59% of frames across captures, while shoulder and
-  // hip have tracked at 99-100% in every one, and on the six-take corpus the
-  // knee path gets three of six rep counts wrong where the depth path gets all
-  // six right. Running both on the same takes is how we found that out rather
-  // than assuming it. Removing the knee path is Phase 5.
-  const bottomIndexes = trunkSamples
-    ? depthRepBottoms(trunkSamples)
-    : kneeRepBottoms(frames, exercise);
-
-  if (bottomIndexes.length === 0) {
-    return { repCount: 0, passRate: null, coverageRate };
+  const series = buildDepthSeries(trunkSamples);
+  if (series === null) {
+    return { repCount: 0, reps: [], coverageRate };
   }
 
-  let passedAtBottoms = 0;
-  let evaluatedAtBottoms = 0;
-  for (const bottomIndex of bottomIndexes) {
-    const frame = frames[bottomIndex];
-    if (frame === undefined) continue;
-    for (const rule of frame.ruleResults) {
-      if (!rule.evaluated) continue;
-      evaluatedAtBottoms += 1;
-      if (rule.passed) passedAtBottoms += 1;
-    }
-  }
+  const depthReps = detectDepthReps(series.values);
+  const reps: RepSummary[] = depthReps.map((rep) => repSummary(rep, trunkSamples, series.baseline));
 
+  return { repCount: reps.length, reps, coverageRate };
+}
+
+function repSummary(
+  rep: DepthRep,
+  trunkSamples: (TrunkSample | null)[],
+  baseline: Parameters<typeof leanDelta>[1]
+): RepSummary {
+  const bottomSample = trunkSamples[rep.bottomIndex];
   return {
-    repCount: bottomIndexes.length,
-    passRate: evaluatedAtBottoms === 0 ? null : passedAtBottoms / evaluatedAtBottoms,
-    coverageRate
+    bottomDepthRatio: rep.bottomDepthRatio,
+    leanDeltaDegrees: bottomSample ? leanDelta(bottomSample, baseline) : 0
   };
 }
 
-/** Rep bottoms from the exercise's knee-angle rep signal. */
-function kneeRepBottoms(frames: SessionFrameRecord[], exercise: ExerciseDefinition): number[] {
-  const signalAngles = frames.map((f) => {
-    const signal = f.ruleResults.find((r) => r.ruleName === exercise.repSignalRuleName);
-    return signal?.evaluated ? signal.angleDegrees : null;
-  });
-  return detectReps(signalAngles).map((rep) => rep.bottomIndex);
-}
-
-/**
- * Rep bottoms from the hip-depth signal. Returns nothing when the run never
- * produced a usable standing baseline — a refusal to measure, which is distinct
- * from measuring zero reps.
- */
-function depthRepBottoms(trunkSamples: (TrunkSample | null)[]): number[] {
-  const series = buildDepthSeries(trunkSamples);
-  if (series === null) return [];
-  return detectDepthReps(series.values).map((rep) => rep.bottomIndex);
-}
-
-/** Renders "3 reps - 83% good form" style text into a container. */
+/** Renders honest, baseline-relative session text into a container. */
 export function renderProgressSummary(container: HTMLElement, summary: SessionSummary): void {
   const coveragePercent = Math.round(summary.coverageRate * 100);
 
-  if (summary.repCount === 0 || summary.passRate === null) {
+  if (summary.repCount === 0) {
     container.textContent =
-      `No complete reps detected, so there's no form score for this session. ` +
-      `${coveragePercent}% of form checks had a clear enough view of your body — ` +
-      `if that's low, move further back so your whole body is in frame and try again.`;
+      `No complete reps detected this session. ` +
+      `${coveragePercent}% of the session had a clear enough view of your hips and ` +
+      `shoulders to measure depth — if that's low, move further back so your whole ` +
+      `body is in frame and try again.`;
     return;
   }
 
-  const passPercent = Math.round(summary.passRate * 100);
   const repLabel = summary.repCount === 1 ? "1 rep" : `${summary.repCount} reps`;
+  const avgDepth = average(summary.reps.map((r) => r.bottomDepthRatio));
+  const avgLean = average(summary.reps.map((r) => r.leanDeltaDegrees));
+
   container.textContent =
-    `${repLabel} — ${passPercent}% good form at the bottom of each rep ` +
-    `(${coveragePercent}% of form checks had a clear view this session).`;
+    `${repLabel} this session. Hips dropped an average of ${avgDepth.toFixed(2)}x your ` +
+    `standing trunk length at each rep's deepest point, with trunk lean averaging ` +
+    `${formatSigned(avgLean)}° from your standing posture ` +
+    `(${coveragePercent}% of the session had a clear view).`;
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+function formatSigned(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return rounded >= 0 ? `+${rounded}` : `${rounded}`;
 }

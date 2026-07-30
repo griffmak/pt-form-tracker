@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { detectReps } from "./rep-detection";
+import { detectReps } from "./knee-rep-baseline";
 
 /**
  * Replays real captured sessions through rep detection.

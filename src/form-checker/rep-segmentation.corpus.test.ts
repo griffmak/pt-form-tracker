@@ -3,7 +3,7 @@ import { loadCorpus, CORPUS_TAKES } from "../../tests/corpus";
 import { trunkSample, type TrunkSample } from "../pose/planar-measures";
 import { buildDepthSeries } from "./depth-series";
 import { detectDepthReps, type DepthRep } from "./rep-segmentation";
-import { detectReps } from "./rep-detection";
+import { detectReps } from "../../tests/knee-rep-baseline";
 import { rollingDepthSeries, repDeviations, type RepDeviation } from "./rep-deviation";
 
 function trunkSamplesFor(name: string): (TrunkSample | null)[] {

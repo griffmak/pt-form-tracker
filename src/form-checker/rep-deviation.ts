@@ -1,6 +1,6 @@
 import type { TrunkSample } from "../pose/planar-measures";
 import { withinCalibratedScale, type Baseline } from "./calibration";
-import { percentile } from "./rep-detection";
+import { percentile } from "../pose/percentile";
 import type { DepthRep } from "./rep-segmentation";
 
 /**

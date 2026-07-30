@@ -1,4 +1,4 @@
-import { percentile } from "./rep-detection";
+import { percentile } from "../pose/percentile";
 
 /**
  * Maximum plausible change in depth ratio between consecutive frames.

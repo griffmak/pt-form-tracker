@@ -92,13 +92,18 @@ The build output is a plain static site — any static host works.
 1. Open the page and allow camera access.
 2. **Stand side-on to the camera**, with your whole body visible. This matters:
    the squat rules measure knee and hip angles that simply aren't measurable
-   from the front, and a front-on session will report a misleadingly low pass
-   rate. The app shows this instruction above the live view.
+   from the front, and depth and lean can't be measured from a body that isn't
+   fully in frame. The app shows this instruction above the live view.
 3. Review the **form ranges** panel and adjust them if they don't fit you (see
    below).
-4. Squat. The overlay shows your skeleton and live per-rule pass/fail.
-5. Press **`e`** to end the session. You'll get a 3D replay and a summary of
-   pass rate and rule coverage.
+4. **Hold still.** The calibration readout below the framing readout tracks
+   this — it needs a few seconds of standing still to establish your baseline
+   before recording can start. Space does nothing until it says "Calibrated."
+5. Press **space** to start recording, then squat. The overlay shows your
+   skeleton and live per-rule pass/fail.
+6. Press **`e`** to end the session. You'll get a 3D replay and a summary of
+   your rep count, plus each rep's hip depth and trunk lean measured as deltas
+   from your own standing baseline.
 
 ---
 
@@ -107,26 +112,25 @@ The build output is a plain static site — any static host works.
 This is the most important limitation to understand before trusting anything
 this tool tells you.
 
-The default ranges shipped for the squat are:
+The only remaining rule, Knee bend depth, defaults to a 70–100° range —
+clinical squat-depth literature placing near-parallel-to-parallel thigh
+position in this band. This is a **population-level reference value from
+public PT guidance**, not calibrated to you. If you have different limb
+proportions, an existing mobility limitation, older joints, or a PT who has
+given you a deliberately different target, this default can confidently tell
+you your form is "wrong" when it is entirely correct *for your body*.
 
-| Rule | Default range | Where it comes from |
-|---|---|---|
-| Knee bend depth | 70–100° | Clinical squat-depth literature placing near-parallel-to-parallel thigh position in this band |
-
-These are **population-level reference values from public PT guidance**. They
-are not calibrated to you. If you have different limb proportions, an existing
-mobility limitation, older joints, or a PT who has given you a deliberately
-different target, these defaults can confidently tell you your form is "wrong"
-when it is entirely correct *for your body*.
-
-Because of that, every rule's range is editable in the **"Form ranges (adjust
-for your body)"** panel on the page. Changes apply immediately and persist in
-your browser, and each rule can be reset to its default. Whichever value is
-active — default or yours — is the only thing the app measures against.
+Because of that, the range is editable in the **"Form ranges (adjust for your
+body)"** panel on the page. Changes apply immediately and persist in your
+browser, and it can be reset to its default. Whichever value is active —
+default or yours — drives only the **live on-screen cue** during your set. It
+has no effect on the session summary: that summary reports hip depth and
+trunk lean purely as deltas from your own standing baseline, which has no
+population reference band by construction.
 
 **The app never decides what is medically appropriate for you.** It has no
-visibility into your joints, discs, or history; it only sees external body shape
-from one camera. It measures consistency against a reference range you control.
+visibility into your joints, discs, or history; it only sees external body
+shape from one camera.
 
 ## Limitations — read these honestly
 
@@ -147,16 +151,25 @@ from one camera. It measures consistency against a reference range you control.
 
 Single-page Vite + TypeScript app, 100% client-side:
 
-- `src/pose/` — MediaPipe wrapper and pure joint-angle math
-- `src/form-checker/` — compares angles against the active range; tracks which
-  rules were actually measurable per frame (rule coverage), so a session can't
-  look "clean" just because a rule was never visible
+- `src/pose/` — MediaPipe wrapper, joint-angle math, and the planar trunk
+  measures (`planar-measures.ts`) the depth/lean signal is built from
+- `src/form-checker/` — two separate things live here: `form-checker.ts`
+  compares live angles against the active range for the on-screen cue only
+  (and tracks which rules were actually measurable per frame, so the cue
+  can't look "clean" just because a rule was never visible); `depth-series.ts`
+  and `rep-segmentation.ts` are the rep-counting and session-summary path,
+  entirely separate from the per-frame rule cue
 - `src/exercise-library/` — exercise definitions and your saved range overrides
 - `src/storage/` — batched IndexedDB writes, kept off the render loop
-- `src/render/` — live 2D overlay, 3D replay, summary, settings panel
+- `src/render/` — live 2D overlay, calibration/framing readouts, 3D replay,
+  session summary, settings panel
 
-Angles are computed from MediaPipe's metric `worldLandmarks` rather than the 2D
-`landmarks`, which distort heavily with camera viewing angle.
+Angles for the live knee-bend-depth cue are computed from MediaPipe's metric
+`worldLandmarks`, which give viewpoint-robust interior joint angles regardless
+of exact camera framing. Rep counting and the session summary's depth/lean
+numbers instead use the normalized 2D `landmarks`: in a side-on view the
+sagittal plane approximately *is* the image plane, and `worldLandmarks`'
+undocumented axis orientation would add noise here rather than remove it.
 
 ## License
 

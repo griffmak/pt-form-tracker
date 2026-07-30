@@ -20,7 +20,8 @@ export function renderRuleSettings(
   note.className = "settings-note";
   note.textContent =
     "These ranges are general reference values from public PT guidance — not a personalized or clinical assessment. " +
-    "If a range doesn't match your body or your current mobility, adjust it here before starting.";
+    "If a range doesn't match your body or your current mobility, adjust it here before starting. " +
+    "They drive the live on-screen cue only — your session summary reports depth and lean against your own standing baseline and doesn't use them.";
   container.appendChild(note);
 
   for (const rule of exercise.rules) {

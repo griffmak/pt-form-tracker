@@ -34,12 +34,17 @@ yet reachable from the running app — that wiring belongs to Phase 5.
 
 ## Next action
 
-**Phase 4 — rep-level confidence gating.** Its plan
-(`docs/superpowers/plans/2026-07-28-measurement-rebuild/phase-4-confidence-gating.md`)
-is still structural and needs writing out task-by-task from the numbers now in
-`corpus-manifest.md`, the same way Phase 3's was.
+**Phase 5 wiring, ahead of Phase 4 — the order changed.** Get the depth path into
+the live app: wire it into `main.ts`, build the calibration experience (hold still
+→ ready → couldn't calibrate), retire the knee-angle path, and fix copy that
+claims more than the tool can measure.
 
-Read `HANDOFF.md` first — it carries the five open findings Phase 4 should know
-about, including the one mutation that survives Phase 3's test suite (removing the
-depth jump filter breaks nothing on real data) which is itself a confidence-gating
-question.
+Why ahead of confidence gating: what Phase 4 produces *is* a message on screen, so
+building it with no interface to attach to means designing its semantics twice.
+And until this lands, the rebuild has changed nothing a user can feel — the live
+app still behaves like the version that reported 2 reps and 50% good form over 26
+seconds of standing still.
+
+Read `HANDOFF.md` first — its "Next session" section carries the full reasoning,
+the ~4.6–6.5s calibration delay that now needs on-screen words, and the five open
+findings.

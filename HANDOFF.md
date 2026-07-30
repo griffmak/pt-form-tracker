@@ -2,9 +2,10 @@
 
 **Written:** 2026-07-29, at the end of the Phase 2 + Phase 3 session.
 **Branch:** `measurement-rebuild` (pushed, in sync with origin).
-**Read next:** `docs/superpowers/plans/2026-07-28-measurement-rebuild/phase-4-confidence-gating.md`,
-then `corpus-manifest.md` in full — it now carries every measured constant this
-rebuild depends on.
+**Read next:** the "Next session" section immediately below — **the phase order
+changed**, so do not just open Phase 4 because it is the next number. Then
+`corpus-manifest.md` in full; it carries every measured constant this rebuild
+depends on.
 
 ---
 
@@ -16,14 +17,48 @@ rebuild depends on.
 | 1 | Raw-landmark instrumentation; record the capture corpus | ✅ **DONE** 2026-07-28 (night), 4 commits, pushed |
 | 2 | Planar measurement primitives + calibration | ✅ **DONE** 2026-07-29, 6 commits |
 | 3 | Rep segmentation on the depth signal | ✅ **DONE** 2026-07-29, 5 commits |
-| 4 | Rep-level confidence gating | ⬅️ **NEXT**; plan is structural, needs writing out |
-| 5 | UI, copy honesty, streak, worst-rep replay | Structural |
+| 5 | Wire the depth path into the live app + calibration UX + copy honesty | ⬅️ **NEXT** (moved ahead of 4 — see below); plan is structural |
+| 4 | Rep-level confidence gating | After 5; plan is structural |
+| 5b | Deviation flag UI, streak, worst-rep replay | After 4; gated on a product decision |
 
 Phase index: `docs/superpowers/plans/2026-07-28-measurement-rebuild/README.md`
 Design spec: `docs/superpowers/specs/2026-07-28-measurement-rebuild-design.md`
 
 **163/163 tests, `npx tsc --noEmit` clean, `npm run build` clean** (only the
 pre-existing chunk-size warning). Up from 62 at the end of Phase 1.
+
+## Next session, and why the order changed
+
+**Do the Phase 5 wiring before Phase 4.** The roadmap has confidence gating
+first, and that was right when it was written, but two things make it wrong now:
+
+1. **What Phase 4 produces IS a message on screen** — "I couldn't see you well
+   enough to judge that rep." Building the refusal logic with no interface to
+   refuse into means designing its semantics twice: once as a return value, then
+   again as copy, and the second pass will reveal the first was shaped wrong. The
+   same already applies to calibration: `assessCalibration` refuses to guess a bad
+   baseline rather than emit a confident wrong number, and that refusal has **no
+   words attached to it anywhere**.
+2. **The rebuild has produced zero user-visible change so far.** `main.ts` is
+   untouched, so the live app still behaves like the version that reported
+   `repCount: 2, passRate: 0.5` over 25.9s of standing still. Nobody can feel
+   whether this is better, and the demo video's "after" footage cannot be shot.
+
+**Scope of the next session:** wire the depth path into `main.ts`; build the
+calibration experience (hold still → ready → couldn't calibrate); retire the
+knee-angle path; fix copy that claims more than the tool can measure. **Not** the
+deviation flag UI, **not** the streak — those come after Phase 4.
+
+**Expect a new user-visible step.** Calibration needs ~1.5s of stillness and, on
+the six corpus takes, became ready **4.6–6.5s** after the camera started. Ship
+that silently and the user's first rep goes into a dead app.
+
+**One decision needed, but not yet.** Before the deviation-flag session: is the
+promise "we spot inconsistency in your set" or "we tell you when you're doing it
+wrong"? `corpus-04-shallow` gets **zero** flags — every rep shallow, consistently,
+correctly unflagged — which reads as right under the first promise and broken
+under the second. The measurements do not currently support the second. This does
+not block the next session.
 
 ## The headline: the new signal works, and by how much
 
@@ -125,7 +160,7 @@ claim otherwise.
 
 **4. `main.ts` is untouched by Phases 2 and 3.** Nothing in production computes
 trunk samples yet, so `summarizeSession`'s depth path is not reachable from the
-running app. That wiring is Phase 5, deliberately.
+running app. That wiring is the next session's whole job.
 
 **5. Still open from Phase 0/1:** `main.ts:156-157` replaces the framing readout
 with "Recording..." once a session starts (Phase 5 fix). The cross-session history

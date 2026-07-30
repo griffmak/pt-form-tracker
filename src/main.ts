@@ -11,6 +11,9 @@ import { loadOverrides } from "./exercise-library/overrides";
 import { renderRuleSettings } from "./render/rule-settings";
 import { serializeLandmarks, RECORDED_LANDMARK_INDICES } from "./pose/landmark-recording";
 import type { RecordedFrame } from "./pose/landmark-recording";
+import { trunkSample, type TrunkSample } from "./pose/planar-measures";
+import { assessCalibration, type CalibrationState } from "./form-checker/calibration";
+import { renderCalibrationReadout } from "./render/calibration-readout";
 
 /** Per-rule angle range + pass/coverage stats, dumped to console at session end for review. */
 function buildRuleStats(frames: SessionFrameRecord[]) {
@@ -74,6 +77,7 @@ async function main() {
   const replayContainer = document.getElementById("replay-container")!;
   const progressContainer = document.getElementById("progress-container")!;
   const framingInstructions = document.getElementById("framing-instructions")!;
+  const calibrationReadout = document.getElementById("calibration-readout")!;
 
   const framingLabel = exercise.requiredFraming === "side-view" ? "Stand side-on to the camera." : "Face the camera.";
   framingInstructions.textContent = `${framingLabel} ${exercise.referenceDescription}`;
@@ -97,12 +101,27 @@ async function main() {
   await video.play();
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
+  const aspectRatio = video.videoWidth / video.videoHeight;
 
   const store = new SessionStore();
   await store.open();
   const sessionId = await store.startSession(exercise.id);
 
   const worldLandmarksHistory: PoseWorldLandmark[][] = [];
+
+  // Seeded (see the space-bar handler below) with a COPY of the trailing
+  // calibrationBuffer window the live gate just accepted, not left empty.
+  // Without this seed, buildDepthSeries (called later, on just this array) must
+  // independently re-find a fresh 90-frame stable window from the post-press
+  // frames alone — and a user who starts squatting promptly after "Calibrated"
+  // appears never gives it one: measured against the corpus, inter-rep standing
+  // gaps run 37-66 frames, never 90, so 4 of 6 takes would never re-calibrate and
+  // summarizeSession would report zero reps despite a clean set. Seeding with
+  // the already-proven window makes buildDepthSeries's own findBaseline return
+  // readyAt = 90 on its first iteration, with the identical baseline the live
+  // gate computed — same values from the ready point onward as the corpus's
+  // batch pipeline, so rep counts are unaffected.
+  let trunkSamples: (TrunkSample | null)[] = [];
 
   // Per-frame tracking diagnostics, kept alongside the graded frames rather than
   // inside them: a frame with no pose at all is never stored (see below), so the
@@ -120,6 +139,25 @@ async function main() {
   // frame with no detected pose appears as lm: null instead of vanishing.
   const rawFrames: RecordedFrame[] = [];
 
+  // Must match assessCalibration's own CALIBRATION_WINDOW_FRAMES
+  // (src/form-checker/calibration.ts) — it is module-private there, so this is a
+  // second declaration of the same measured constant (1.5s at 60fps, per Phase 2),
+  // not an independent choice. Needed here so Task 6 can seed the recording-phase
+  // trunkSamples array with the exact window the live gate just accepted.
+  const CALIBRATION_WINDOW_FRAMES = 90;
+
+  // Grows from the moment the camera starts, independent of `recording` — the
+  // live calibration gate scans its trailing window every frame so the user can
+  // become "ready" before pressing space. See assessCalibration's own docs: the
+  // opening ~4.6-6.5s is the tracker converging and is the WORST window in every
+  // corpus take, never a valid baseline.
+  const calibrationBuffer: (TrunkSample | null)[] = [];
+  let calibrationState: CalibrationState = {
+    ready: false,
+    baseline: null,
+    message: "Hold still — measuring your standing position."
+  };
+
   // The camera runs immediately so the user can frame themselves, but nothing is
   // recorded until they press space. A real session skipped ~86% of its rule
   // checks for landmark visibility with no warning until it was already over;
@@ -133,10 +171,16 @@ async function main() {
     const landmarks = result.worldLandmarks[0] as PoseWorldLandmark[] | undefined;
     const frameResult = landmarks ? checkFrame(exercise, landmarks, overrides) : null;
 
+    const recordedLm = serializeLandmarks(result.landmarks[0], Date.now()).lm;
+    const trunk = recordedLm ? trunkSample(recordedLm, aspectRatio) : null;
+
     drawOverlay(ctx, video, result, exercise, frameResult);
 
     if (!recording) {
       renderFramingReadout(framingReadout, assessFraming(exercise, landmarks ?? []));
+      calibrationBuffer.push(trunk);
+      calibrationState = assessCalibration(calibrationBuffer);
+      renderCalibrationReadout(calibrationReadout, calibrationState);
       return;
     }
 
@@ -146,7 +190,8 @@ async function main() {
       visibility: landmarks ? trackedJointIndices.map((i) => landmarks[i].visibility) : null
     });
 
-    rawFrames.push(serializeLandmarks(result.landmarks[0], Date.now()));
+    rawFrames.push({ t: Date.now(), lm: recordedLm });
+    trunkSamples.push(trunk);
 
     if (frameResult && landmarks) {
       worldLandmarksHistory.push(landmarks);
@@ -162,9 +207,13 @@ async function main() {
   window.addEventListener("keydown", (e) => {
     if (e.code !== "Space" || recording) return;
     e.preventDefault();
+    if (!calibrationState.ready) return;
     recording = true;
+    trunkSamples = calibrationBuffer.slice(-CALIBRATION_WINDOW_FRAMES);
     framingReadout.classList.remove("ready", "not-ready");
     framingReadout.textContent = "Recording — press \"e\" to end the session.";
+    calibrationReadout.classList.remove("ready", "not-ready");
+    calibrationReadout.textContent = "Recording — hips and shoulders being tracked for depth.";
   });
 
   window.addEventListener("beforeunload", () => {
@@ -188,7 +237,7 @@ async function main() {
     }
 
     const frames = await store.getFramesForSession(sessionId);
-    const summary = summarizeSession(frames, exercise);
+    const summary = summarizeSession(trunkSamples);
 
     // Every rule's full per-frame angle series, dumped so metric changes can be
     // replayed against real capture rather than only synthetic fixtures. The previous

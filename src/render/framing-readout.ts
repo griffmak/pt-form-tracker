@@ -18,7 +18,7 @@ export function renderFramingReadout(
   const hint = document.createElement("span");
   hint.className = "readout-hint";
   hint.textContent = assessment.ready
-    ? "Press space to start recording."
-    : "Press space to record anyway — form checks are skipped while joints are out of frame.";
+    ? "Hold still until calibration finishes below, then press space."
+    : "Step into frame — the live joint cue is skipped while joints are out of frame.";
   container.appendChild(hint);
 }

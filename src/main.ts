@@ -9,11 +9,12 @@ import { SessionStore, type SessionFrameRecord } from "./storage/session-store";
 import { exerciseLibrary } from "./exercise-library";
 import { loadOverrides } from "./exercise-library/overrides";
 import { renderRuleSettings } from "./render/rule-settings";
-import { serializeLandmarks, RECORDED_LANDMARK_INDICES } from "./pose/landmark-recording";
+import { serializeLandmarks, RECORDED_LANDMARK_INDICES, LM_INDEX } from "./pose/landmark-recording";
 import type { RecordedFrame } from "./pose/landmark-recording";
 import { trunkSample, type TrunkSample } from "./pose/planar-measures";
 import { assessCalibration, type CalibrationState } from "./form-checker/calibration";
 import { renderCalibrationReadout } from "./render/calibration-readout";
+import { PositionSmoother } from "./pose/smoothing";
 
 /** Per-rule angle range + pass/coverage stats, dumped to console at session end for review. */
 function buildRuleStats(frames: SessionFrameRecord[]) {
@@ -158,6 +159,21 @@ async function main() {
     message: "Hold still — measuring your standing position."
   };
 
+  // One smoother per trunk landmark position. TRUNK_POSITIONS holds each trunk
+  // landmark's index WITHIN the recorded 8-element array (landmark-recording.ts's
+  // LM_INDEX order), not the raw MediaPipe landmark index — recordedLm is already
+  // narrowed to that 8-element array by serializeLandmarks. 5-frame trailing
+  // median: short enough to track a real descent (the fastest measured is 0.0625
+  // depth-ratio/frame, corpus-manifest.md) while still killing a single-frame
+  // position glitch before it reaches trunkSample.
+  // Annotated number[] rather than left to infer: LM_INDEX is `as const`
+  // (landmark-recording.ts), so an uncast array literal here would infer as
+  // (0|1|2|3)[], and TRUNK_POSITIONS.indexOf(i) below passes it a plain `number`
+  // (the .map callback's index) — a type error against the narrower inferred type.
+  const TRUNK_POSITIONS: number[] = [LM_INDEX.leftShoulder, LM_INDEX.rightShoulder, LM_INDEX.leftHip, LM_INDEX.rightHip];
+  const SMOOTHING_WINDOW = 5;
+  const positionSmoothers = TRUNK_POSITIONS.map(() => new PositionSmoother(SMOOTHING_WINDOW));
+
   // The camera runs immediately so the user can frame themselves, but nothing is
   // recorded until they press space. A real session skipped ~86% of its rule
   // checks for landmark visibility with no warning until it was already over;
@@ -172,7 +188,15 @@ async function main() {
     const frameResult = landmarks ? checkFrame(exercise, landmarks, overrides) : null;
 
     const recordedLm = serializeLandmarks(result.landmarks[0], Date.now()).lm;
-    const trunk = recordedLm ? trunkSample(recordedLm, aspectRatio) : null;
+    const smoothedLm = recordedLm
+      ? recordedLm.map((point, i) => {
+          const trunkPosition = TRUNK_POSITIONS.indexOf(i);
+          if (trunkPosition === -1) return point;
+          const [x, y] = positionSmoothers[trunkPosition].push([point[0], point[1]]);
+          return [x, y, point[2], point[3]];
+        })
+      : null;
+    const trunk = smoothedLm ? trunkSample(smoothedLm, aspectRatio) : null;
 
     drawOverlay(ctx, video, result, exercise, frameResult);
 

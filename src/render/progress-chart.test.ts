@@ -74,6 +74,26 @@ describe("summarizeSession", () => {
     expect(summary.coverageRate).toBeGreaterThan(0);
     expect(summary.coverageRate).toBeLessThan(1);
   });
+
+  test("marks a rep with a degraded bottom window as seen-not-graded, not failed", () => {
+    const samples = trunkSamplesWithReps(2);
+    // trunkSamplesWithReps(2)'s first rep segments to startIndex 129, bottomIndex
+    // 149, endIndex 176 (still(120) then a 30-frame descent from index 120, so the
+    // hip-Y maximum lands at index 149 — verify this against detectDepthReps
+    // directly if the fixture above ever changes). assessRepConfidence's window is
+    // therefore [137, 161] (bottomIndex ± BOTTOM_WINDOW_HALF_FRAMES, 12). Degrading
+    // [130, 170] covers that full window with margin — a narrower degradation
+    // (e.g. only ±5 frames) leaves most of the 25-frame window at 0.99 and the
+    // median stays above threshold, which is a real bug this test must not
+    // reproduce: it would assert "seen-not-graded" while actually testing nothing.
+    const degraded = samples.map((s, i) => (i >= 130 && i <= 170 && s ? { ...s, minVisibility: 0.1 } : s));
+
+    const summary = summarizeSession(degraded);
+
+    expect(summary.repCount).toBe(2);
+    expect(summary.reps.filter((r) => r.graded)).toHaveLength(1);
+    expect(summary.reps.filter((r) => !r.graded)).toHaveLength(1);
+  });
 });
 
 describe("renderProgressSummary", () => {
@@ -91,8 +111,8 @@ describe("renderProgressSummary", () => {
     renderProgressSummary(container, {
       repCount: 2,
       reps: [
-        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4 },
-        { bottomDepthRatio: 0.58, leanDeltaDegrees: -1.1 }
+        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true },
+        { bottomDepthRatio: 0.58, leanDeltaDegrees: -1.1, graded: true }
       ],
       coverageRate: 0.97
     });
@@ -101,5 +121,35 @@ describe("renderProgressSummary", () => {
     // Every degree figure must be adjacent to "baseline" or "standing" language,
     // never presented as a standalone absolute angle.
     expect(container.textContent).toMatch(/from your standing/);
+  });
+
+  test("does not present an ungraded rep's numbers as a verdict", () => {
+    const container = document.createElement("div");
+    renderProgressSummary(container, {
+      repCount: 2,
+      reps: [
+        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true },
+        { bottomDepthRatio: 0.2, leanDeltaDegrees: 9.9, graded: false }
+      ],
+      coverageRate: 0.8
+    });
+
+    expect(container.textContent).toContain("1 of 2 reps");
+    expect(container.textContent!.toLowerCase()).toContain("couldn't see");
+  });
+
+  test("does not claim it couldn't see reps that were all graded", () => {
+    const container = document.createElement("div");
+    renderProgressSummary(container, {
+      repCount: 2,
+      reps: [
+        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true },
+        { bottomDepthRatio: 0.58, leanDeltaDegrees: -1.1, graded: true }
+      ],
+      coverageRate: 0.97
+    });
+
+    expect(container.textContent).toContain("2 reps");
+    expect(container.textContent!.toLowerCase()).not.toContain("couldn't see");
   });
 });

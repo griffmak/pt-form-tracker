@@ -2,6 +2,7 @@ import type { TrunkSample } from "../pose/planar-measures";
 import { buildDepthSeries } from "../form-checker/depth-series";
 import { detectDepthReps, type DepthRep } from "../form-checker/rep-segmentation";
 import { leanDelta } from "../form-checker/calibration";
+import { assessRepConfidence } from "../form-checker/rep-confidence";
 
 /** One rep's depth and lean, both already expressed as deltas from the user's own baseline. */
 export interface RepSummary {
@@ -9,6 +10,12 @@ export interface RepSummary {
   bottomDepthRatio: number;
   /** Trunk-lean change from standing posture at this rep's deepest point, in degrees. */
   leanDeltaDegrees: number;
+  /**
+   * Whether this rep's bottom window had adequate tracking confidence to support a
+   * claim. false means "seen but not graded" — the rep still counts toward
+   * repCount, but its numbers must not be presented as a verdict.
+   */
+  graded: boolean;
 }
 
 export interface SessionSummary {
@@ -56,7 +63,8 @@ function repSummary(
   const bottomSample = trunkSamples[rep.bottomIndex];
   return {
     bottomDepthRatio: rep.bottomDepthRatio,
-    leanDeltaDegrees: bottomSample ? leanDelta(bottomSample, baseline) : 0
+    leanDeltaDegrees: bottomSample ? leanDelta(bottomSample, baseline) : 0,
+    graded: assessRepConfidence(rep, trunkSamples) === "graded"
   };
 }
 
@@ -73,13 +81,32 @@ export function renderProgressSummary(container: HTMLElement, summary: SessionSu
     return;
   }
 
+  const gradedReps = summary.reps.filter((r) => r.graded);
   const repLabel = summary.repCount === 1 ? "1 rep" : `${summary.repCount} reps`;
-  const avgDepth = average(summary.reps.map((r) => r.bottomDepthRatio));
-  const avgLean = average(summary.reps.map((r) => r.leanDeltaDegrees));
+
+  if (gradedReps.length === 0) {
+    container.textContent =
+      `${repLabel} this session, but tracking wasn't clear enough at any of their ` +
+      `bottoms to judge depth or lean — I couldn't see you well enough to grade them. ` +
+      `${coveragePercent}% of the session had a clear view overall.`;
+    return;
+  }
+
+  const avgDepth = average(gradedReps.map((r) => r.bottomDepthRatio));
+  const avgLean = average(gradedReps.map((r) => r.leanDeltaDegrees));
+  const allGraded = gradedReps.length === summary.repCount;
+  const gradedLabel = allGraded ? repLabel : `${gradedReps.length} of ${summary.repCount} reps`;
+  // Only claim there's a "rest" the tool couldn't see when there actually is one —
+  // per this plan's own measurement, real tracking essentially never degrades
+  // enough to trigger seen-not-graded, so allGraded is the overwhelmingly common
+  // path, and a summary whose subject is honesty must not default to a false
+  // statement on its own most common outcome.
+  const ungradedClause = allGraded ? "" : " I couldn't see the rest well enough to judge.";
 
   container.textContent =
-    `${repLabel} this session. Hips dropped an average of ${avgDepth.toFixed(2)}x your ` +
-    `standing trunk length at each rep's deepest point, with trunk lean averaging ` +
+    `${gradedLabel} graded this session.${ungradedClause} ` +
+    `Hips dropped an average of ${avgDepth.toFixed(2)}x your standing trunk length at ` +
+    `each graded rep's deepest point, with trunk lean averaging ` +
     `${formatSigned(avgLean)}° from your standing posture ` +
     `(${coveragePercent}% of the session had a clear view).`;
 }

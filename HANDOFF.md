@@ -1,11 +1,52 @@
 # Handoff — PT Form Tracker, measurement rebuild
 
 **Written:** 2026-07-29, at the end of the Phase 2 + Phase 3 session.
+**Updated:** 2026-07-30 — Phase 4 and Phase 5 are now combined into one session
+(Griffin's call, overriding the earlier 3-session split), and the product
+decision below is settled, not open.
 **Branch:** `measurement-rebuild` (pushed, in sync with origin).
-**Read next:** the "Next session" section immediately below — **the phase order
-changed**, so do not just open Phase 4 because it is the next number. Then
+**Read next:** the "Next session" section immediately below, then
 `corpus-manifest.md` in full; it carries every measured constant this rebuild
 depends on.
+
+---
+
+## Paste-able prompt for the next session
+
+```
+Continue the pt-form-tracker measurement rebuild on branch `measurement-rebuild`.
+Read HANDOFF.md in full, then corpus-manifest.md in full before writing any code.
+
+Scope for this session: Phase 4 (rep-level confidence gating) AND Phase 5
+(wire the depth path into the live app + calibration UX + copy honesty),
+executed together in one session. Both phases' plans are currently structural
+only (goals and constraints, no tasks) — use superpowers:writing-plans to turn
+each into a task-by-task plan grounded in Phase 2/3's real measured numbers
+before executing, the same discipline Phase 3 used. Do Phase 5 first: Phase 4's
+output is on-screen copy, and it has nowhere to attach until Phase 5's UI
+exists.
+
+Hard constraints, unchanged: no runtime AI/API/LLM, deterministic geometry
+only; the tool must never claim anything about the spine, disc, or injury
+risk; interior-joint angle convention is 180° = extended, but the depth signal
+is inverted (a rep's bottom is the signal's MAXIMUM); null means "not
+evaluated," never ends an in-progress rep or gets read as zero. Corpus files
+(session-*.json, corpus-*.json) are tracked and must not be modified.
+
+Product decision, already settled — do not re-litigate: the deviation-flag
+promise is "we tell you when you're doing it wrong," not "we spot
+inconsistency in your set." This session's confidence-gating copy should be
+written consistent with that promise. It also means Phase 5b (later, not this
+session) will need an absolute-depth check added to the deviation signal,
+since the current relative-to-set-median signal alone gives corpus-04-shallow
+zero flags despite every rep being wrong. Don't build 5b now — just don't
+write Phase 4/5 copy that assumes the relative-only signal is the final story.
+
+Context is the binding constraint on a session like this, not effort —
+verification is the first casualty of a tired session. Commit after each task,
+run the full test suite before claiming anything done, and stop to flag rather
+than push through if the session is running long.
+```
 
 ---
 
@@ -17,9 +58,8 @@ depends on.
 | 1 | Raw-landmark instrumentation; record the capture corpus | ✅ **DONE** 2026-07-28 (night), 4 commits, pushed |
 | 2 | Planar measurement primitives + calibration | ✅ **DONE** 2026-07-29, 6 commits |
 | 3 | Rep segmentation on the depth signal | ✅ **DONE** 2026-07-29, 5 commits |
-| 5 | Wire the depth path into the live app + calibration UX + copy honesty | ⬅️ **NEXT** (moved ahead of 4 — see below); plan is structural |
-| 4 | Rep-level confidence gating | After 5; plan is structural |
-| 5b | Deviation flag UI, streak, worst-rep replay | After 4; gated on a product decision |
+| 4 + 5 | Confidence gating + wire the depth path into the live app (calibration UX, copy honesty) | ✅ **DONE** 2026-07-30 |
+| 5b | Deviation flag UI, streak, worst-rep replay | After 4+5; product promise now settled (see below), design not yet started |
 
 Phase index: `docs/superpowers/plans/2026-07-28-measurement-rebuild/README.md`
 Design spec: `docs/superpowers/specs/2026-07-28-measurement-rebuild-design.md`
@@ -27,38 +67,35 @@ Design spec: `docs/superpowers/specs/2026-07-28-measurement-rebuild-design.md`
 **163/163 tests, `npx tsc --noEmit` clean, `npm run build` clean** (only the
 pre-existing chunk-size warning). Up from 62 at the end of Phase 1.
 
-## Next session, and why the order changed
+## Next session: Phase 4 + Phase 5 combined, in that internal order
 
-**Do the Phase 5 wiring before Phase 4.** The roadmap has confidence gating
-first, and that was right when it was written, but two things make it wrong now:
+**Wiring still comes first, inside the combined session.** The reasoning from
+2026-07-29 still holds — Phase 4's output IS a message on screen ("I couldn't
+see you well enough to judge that rep"), and building that logic with no
+interface to attach it to means designing its semantics twice. `main.ts` is
+still untouched, so the rebuild has produced zero user-visible change so far;
+nobody can feel whether this is better, and the demo video's "after" footage
+still cannot be shot until this lands.
 
-1. **What Phase 4 produces IS a message on screen** — "I couldn't see you well
-   enough to judge that rep." Building the refusal logic with no interface to
-   refuse into means designing its semantics twice: once as a return value, then
-   again as copy, and the second pass will reveal the first was shaped wrong. The
-   same already applies to calibration: `assessCalibration` refuses to guess a bad
-   baseline rather than emit a confident wrong number, and that refusal has **no
-   words attached to it anywhere**.
-2. **The rebuild has produced zero user-visible change so far.** `main.ts` is
-   untouched, so the live app still behaves like the version that reported
-   `repCount: 2, passRate: 0.5` over 25.9s of standing still. Nobody can feel
-   whether this is better, and the demo video's "after" footage cannot be shot.
-
-**Scope of the next session:** wire the depth path into `main.ts`; build the
-calibration experience (hold still → ready → couldn't calibrate); retire the
-knee-angle path; fix copy that claims more than the tool can measure. **Not** the
-deviation flag UI, **not** the streak — those come after Phase 4.
+**Scope:** wire the depth path into `main.ts`; build the calibration experience
+(hold still → ready → couldn't calibrate); retire the knee-angle path; fix copy
+that claims more than the tool can measure; then rep-level confidence gating
+once the UI exists to speak through. **Not** the deviation flag UI, **not** the
+streak — those are Phase 5b, still after this session.
 
 **Expect a new user-visible step.** Calibration needs ~1.5s of stillness and, on
 the six corpus takes, became ready **4.6–6.5s** after the camera started. Ship
 that silently and the user's first rep goes into a dead app.
 
-**One decision needed, but not yet.** Before the deviation-flag session: is the
-promise "we spot inconsistency in your set" or "we tell you when you're doing it
-wrong"? `corpus-04-shallow` gets **zero** flags — every rep shallow, consistently,
-correctly unflagged — which reads as right under the first promise and broken
-under the second. The measurements do not currently support the second. This does
-not block the next session.
+**The product decision is settled, 2026-07-30 — this session should build to
+it, not around it.** The promise is "we tell you when you're doing it wrong,"
+not "we spot inconsistency in your set." `corpus-04-shallow` gets **zero**
+flags under the current relative-to-set-median deviation signal — every rep
+shallow, consistently, so nothing looks "inconsistent" — which is wrong under
+this promise. That's a Phase 5b design problem (needs an added absolute-depth
+check), not this session's problem, but Phase 4's confidence-gating copy
+should be written with the "wrong," not "inconsistent," framing in mind so it
+doesn't need a rewrite later.
 
 ## The headline: the new signal works, and by how much
 

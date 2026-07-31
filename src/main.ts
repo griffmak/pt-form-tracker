@@ -182,11 +182,11 @@ async function main() {
   const framingReadout = document.getElementById("framing-readout")!;
   let recording = false;
 
-  // Set the instant space is pressed while framing is ready; cleared the
-  // instant the countdown completes or cancels. null means no countdown is
-  // in progress. See recording-countdown.ts for why this exists: reaching the
-  // laptop's own spacebar pulls the user toward the screen and out of frame,
-  // so recording no longer starts on the same frame as the keypress.
+  // Set the instant space is pressed, regardless of framing; cleared the
+  // instant recording actually starts. null means no countdown/wait is in
+  // progress. See recording-countdown.ts for why this exists: reaching the
+  // laptop's own spacebar means standing close to it, which is never "ready"
+  // framing, so the countdown has to tolerate not-ready and then wait for it.
   let countdownStartedAt: number | null = null;
 
   const engine = new PoseEngine();
@@ -228,7 +228,10 @@ async function main() {
         return;
       }
 
-      if (countdownStartedAt !== null) {
+      if (tick.waitingForReady) {
+        framingReadout.classList.remove("ready", "not-ready");
+        framingReadout.textContent = "Get in frame, side-on to the camera — recording starts as soon as you're in position.";
+      } else if (countdownStartedAt !== null) {
         framingReadout.classList.remove("ready", "not-ready");
         framingReadout.textContent = `Starting in ${secondsRemaining(countdownStartedAt, now)}... hold your position, recording hasn't started yet.`;
       } else {
@@ -260,7 +263,7 @@ async function main() {
   window.addEventListener("keydown", (e) => {
     if (e.code !== "Space" || recording) return;
     e.preventDefault();
-    countdownStartedAt = handleSpacePress(countdownStartedAt, recording, calibrationState.ready, Date.now());
+    countdownStartedAt = handleSpacePress(countdownStartedAt, recording, Date.now());
   });
 
   window.addEventListener("beforeunload", () => {

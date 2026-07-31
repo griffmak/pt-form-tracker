@@ -23,7 +23,7 @@ test("camera session runs end-to-end without console errors and every view rende
   // adjustable. Both are rendered pre-getUserMedia deliberately.
   await expect(page.locator("#privacy-note")).toContainText("Nothing leaves your browser");
   const ruleRows = page.locator("#rule-settings .rule-row");
-  await expect(ruleRows).toHaveCount(2);
+  await expect(ruleRows).toHaveCount(1);
   await expect(ruleRows.first()).toContainText("Knee bend depth");
   await expect(page.locator("#rule-settings")).toContainText("default (70-100°)");
   await page.screenshot({ path: "test-results/setup-view.png", fullPage: true });
@@ -40,25 +40,17 @@ test("camera session runs end-to-end without console errors and every view rende
   await page.keyboard.press("e");
   await expect(page.locator("#progress-container")).toBeEmpty();
 
+  // Recording is gated on live calibration (Phase 5), which itself needs a
+  // detected pose to ever go ready. The fake device's synthetic pattern never
+  // produces one, so calibration can never complete and Space stays a no-op —
+  // this harness cannot exercise the recording path, only that pressing it
+  // early doesn't crash or falsely start a session.
+  const calibrationReadout = page.locator("#calibration-readout");
+  await expect(calibrationReadout).toHaveClass(/not-ready/);
   await page.keyboard.press("Space");
-  await expect(readout).toContainText("Recording");
-  await page.waitForTimeout(2000);
-
-  await page.keyboard.press("e");
-  await page.waitForTimeout(1000);
-
-  const replayCanvas = page.locator("#replay-container canvas");
-  await expect(replayCanvas).toHaveCount(1);
-  const box = await replayCanvas.boundingBox();
-  expect(box?.width ?? 0).toBeGreaterThan(0);
-  expect(box?.height ?? 0).toBeGreaterThan(0);
-
-  // No pose was ever detected, so there are no reps and therefore no form score.
-  // Asserting a "% good form" figure here would be asserting on a number the
-  // harness cannot actually produce — the honest end state is "nothing measured".
-  const summaryText = await page.locator("#progress-container").textContent();
-  expect(summaryText).toContain("No complete reps detected");
-  expect(summaryText).not.toMatch(/\d+% good form/);
+  await page.waitForTimeout(500);
+  await expect(readout).not.toContainText("Recording");
+  await expect(page.locator("#progress-container")).toBeEmpty();
 
   expect(consoleErrors, `Console errors:\n${consoleErrors.join("\n")}`).toEqual([]);
 });

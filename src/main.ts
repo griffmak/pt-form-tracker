@@ -13,6 +13,7 @@ import { serializeLandmarks, RECORDED_LANDMARK_INDICES, LM_INDEX } from "./pose/
 import type { RecordedFrame } from "./pose/landmark-recording";
 import { trunkSample, type TrunkSample } from "./pose/planar-measures";
 import { assessCalibration, type CalibrationState } from "./form-checker/calibration";
+import { handleSpacePress, tickCountdown, secondsRemaining } from "./form-checker/recording-countdown";
 import { renderCalibrationReadout } from "./render/calibration-readout";
 import { PositionSmoother } from "./pose/smoothing";
 
@@ -181,6 +182,13 @@ async function main() {
   const framingReadout = document.getElementById("framing-readout")!;
   let recording = false;
 
+  // Set the instant space is pressed while framing is ready; cleared the
+  // instant the countdown completes or cancels. null means no countdown is
+  // in progress. See recording-countdown.ts for why this exists: reaching the
+  // laptop's own spacebar pulls the user toward the screen and out of frame,
+  // so recording no longer starts on the same frame as the keypress.
+  let countdownStartedAt: number | null = null;
+
   const engine = new PoseEngine();
   await engine.init();
   engine.start(video, (result) => {
@@ -201,10 +209,31 @@ async function main() {
     drawOverlay(ctx, video, result, exercise, frameResult);
 
     if (!recording) {
-      renderFramingReadout(framingReadout, assessFraming(exercise, landmarks ?? []));
+      const framing = assessFraming(exercise, landmarks ?? []);
       calibrationBuffer.push(trunk);
       calibrationState = assessCalibration(calibrationBuffer);
       renderCalibrationReadout(calibrationReadout, calibrationState);
+
+      const now = Date.now();
+      const tick = tickCountdown(countdownStartedAt, calibrationState.ready, now);
+      countdownStartedAt = tick.startedAt;
+
+      if (tick.startRecording) {
+        recording = true;
+        trunkSamples = calibrationBuffer.slice(-CALIBRATION_WINDOW_FRAMES);
+        framingReadout.classList.remove("ready", "not-ready");
+        framingReadout.textContent = "Recording — press \"e\" to end the session.";
+        calibrationReadout.classList.remove("ready", "not-ready");
+        calibrationReadout.textContent = "Recording — hips and shoulders being tracked for depth.";
+        return;
+      }
+
+      if (countdownStartedAt !== null) {
+        framingReadout.classList.remove("ready", "not-ready");
+        framingReadout.textContent = `Starting in ${secondsRemaining(countdownStartedAt, now)}... hold your position, recording hasn't started yet.`;
+      } else {
+        renderFramingReadout(framingReadout, framing);
+      }
       return;
     }
 
@@ -231,13 +260,7 @@ async function main() {
   window.addEventListener("keydown", (e) => {
     if (e.code !== "Space" || recording) return;
     e.preventDefault();
-    if (!calibrationState.ready) return;
-    recording = true;
-    trunkSamples = calibrationBuffer.slice(-CALIBRATION_WINDOW_FRAMES);
-    framingReadout.classList.remove("ready", "not-ready");
-    framingReadout.textContent = "Recording — press \"e\" to end the session.";
-    calibrationReadout.classList.remove("ready", "not-ready");
-    calibrationReadout.textContent = "Recording — hips and shoulders being tracked for depth.";
+    countdownStartedAt = handleSpacePress(countdownStartedAt, recording, calibrationState.ready, Date.now());
   });
 
   window.addEventListener("beforeunload", () => {

@@ -1,30 +1,50 @@
 # Handoff — PT Form Tracker, measurement rebuild
 
 **Written:** 2026-07-29, at the end of the Phase 2 + Phase 3 session.
-**Updated:** 2026-07-30 — Phase 4 and Phase 5 are now combined into one session
-(Griffin's call, overriding the earlier 3-session split), and the product
-decision below is settled, not open.
-**Branch:** `measurement-rebuild` (pushed, in sync with origin).
-**Read next:** the "Next session" section immediately below, then
-`corpus-manifest.md` in full; it carries every measured constant this rebuild
-depends on.
+**Updated:** 2026-07-30 — Phase 4 and Phase 5 were executed together this
+session, per the finalized `phase-4-5-combined-plan.md`. All six phases of the
+measurement rebuild are now shipped. What's left is a live camera smoke test
+(Griffin's action, not an agent's) and a design decision about what comes next
+(Phase 5b vs. the demo video).
+**Branch:** `measurement-rebuild` (pushed, in sync with origin — 24 commits
+total, 13 from this session).
+**Read next:** the "Next session" section immediately below. `corpus-manifest.md`
+is still the source for every measured constant, but nothing in the next
+session's scope requires re-deriving one.
 
 ---
 
 ## Paste-able prompt for the next session
 
 ```
-Continue the pt-form-tracker measurement rebuild on branch `measurement-rebuild`.
-Read HANDOFF.md in full, then corpus-manifest.md in full before writing any code.
+pt-form-tracker's measurement rebuild (Phases 0-5) is done and pushed to
+`measurement-rebuild` — 176/176 tests, tsc clean, build clean, forbidden-claims
+grep passed. Read HANDOFF.md's "Where we are in the phases" table below to
+confirm, then do the following in order.
 
-Scope for this session: Phase 4 (rep-level confidence gating) AND Phase 5
-(wire the depth path into the live app + calibration UX + copy honesty),
-executed together in one session. Both phases' plans are currently structural
-only (goals and constraints, no tasks) — use superpowers:writing-plans to turn
-each into a task-by-task plan grounded in Phase 2/3's real measured numbers
-before executing, the same discipline Phase 3 used. Do Phase 5 first: Phase 4's
-output is on-screen copy, and it has nowhere to attach until Phase 5's UI
-exists.
+1. LIVE SMOKE TEST FIRST, WITH ME, BEFORE ANY NEW CODE. Start the dev server
+   (`npm run dev`) and I will calibrate (hold still ~5s), record a real set,
+   and read the summary in an actual browser with a real camera — no prior
+   session was able to do this, since it requires a physical camera. If
+   anything looks wrong (calibration never goes ready, the summary claims
+   something the forbidden-claims checklist forbids, reps miscount), stop and
+   debug that before touching Phase 5b — a shipped-but-broken live path is
+   worse than an unshipped one.
+
+2. Once the smoke test passes, ask me which of these two tracks to take:
+   (a) Phase 5b — deviation-flag UI, streak, worst-rep replay. This needs its
+   own superpowers:brainstorming + superpowers:writing-plans pass before any
+   code, because the product promise ("we tell you when you're doing it
+   wrong," settled 2026-07-30) means the current relative-to-set-median
+   deviation signal is insufficient on its own — corpus-04-shallow (every rep
+   uniformly shallow) gets zero flags under it despite being wrong on every
+   rep. Design an added absolute-depth check before writing any Phase 5b task
+   plan; don't reuse the relative signal alone.
+   (b) Shoot the demo video's "after" footage per `docs/demo-video-plan.md`.
+   2 of 3 planned shots are available now (full-set recording with correct
+   rep count; a shallow set counted rather than dropped). The 3rd shot (a rep
+   flagged as unlike the others) is blocked on Phase 5b, so if that's the shot
+   Griffin wants, do 5b first.
 
 Hard constraints, unchanged: no runtime AI/API/LLM, deterministic geometry
 only; the tool must never claim anything about the spine, disc, or injury
@@ -32,15 +52,6 @@ risk; interior-joint angle convention is 180° = extended, but the depth signal
 is inverted (a rep's bottom is the signal's MAXIMUM); null means "not
 evaluated," never ends an in-progress rep or gets read as zero. Corpus files
 (session-*.json, corpus-*.json) are tracked and must not be modified.
-
-Product decision, already settled — do not re-litigate: the deviation-flag
-promise is "we tell you when you're doing it wrong," not "we spot
-inconsistency in your set." This session's confidence-gating copy should be
-written consistent with that promise. It also means Phase 5b (later, not this
-session) will need an absolute-depth check added to the deviation signal,
-since the current relative-to-set-median signal alone gives corpus-04-shallow
-zero flags despite every rep being wrong. Don't build 5b now — just don't
-write Phase 4/5 copy that assumes the relative-only signal is the final story.
 
 Context is the binding constraint on a session like this, not effort —
 verification is the first casualty of a tired session. Commit after each task,
@@ -67,15 +78,18 @@ Design spec: `docs/superpowers/specs/2026-07-28-measurement-rebuild-design.md`
 **163/163 tests, `npx tsc --noEmit` clean, `npm run build` clean** (only the
 pre-existing chunk-size warning). Up from 62 at the end of Phase 1.
 
-## Next session: Phase 4 + Phase 5 combined, in that internal order
+## Phase 4 + Phase 5 combined — done 2026-07-30 (was: "Next session")
 
-**Wiring still comes first, inside the combined session.** The reasoning from
-2026-07-29 still holds — Phase 4's output IS a message on screen ("I couldn't
-see you well enough to judge that rep"), and building that logic with no
-interface to attach it to means designing its semantics twice. `main.ts` is
-still untouched, so the rebuild has produced zero user-visible change so far;
-nobody can feel whether this is better, and the demo video's "after" footage
-still cannot be shot until this lands.
+**As of 2026-07-30, this section describes completed work**, kept below for
+its reasoning and locked decisions rather than rewritten — the "Next session"
+work is now in the paste-able prompt above (live smoke test, then Phase 5b vs.
+video). `main.ts` is no longer untouched; the depth path is wired end-to-end
+and reachable from the running app.
+
+**Wiring came first, inside the combined session**, per the reasoning from
+2026-07-29 — Phase 4's output IS a message on screen ("I couldn't see you well
+enough to judge that rep"), and building that logic with no interface to
+attach it to would have meant designing its semantics twice.
 
 **Scope:** wire the depth path into `main.ts`; build the calibration experience
 (hold still → ready → couldn't calibrate); retire the knee-angle path; fix copy

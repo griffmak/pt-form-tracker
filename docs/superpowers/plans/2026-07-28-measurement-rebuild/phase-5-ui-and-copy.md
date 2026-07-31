@@ -1,3 +1,9 @@
+> **Update 2026-07-30.** Rewritten task-by-task, combined with Phase 4, in
+> [`phase-4-5-combined-plan.md`](phase-4-5-combined-plan.md). **Scope correction:**
+> HANDOFF.md (2026-07-30) explicitly moved Streak and Worst-Rep Replay to Phase 5b —
+> neither is built by the combined plan. This file is kept for its forbidden-claims
+> checklist, which the combined plan applies in full.
+
 # Phase 5 — UI, Copy Honesty, Streak, Worst-Rep Replay
 
 > **Read `phase-2-measurement-primitives.md` first**, specifically its "Context

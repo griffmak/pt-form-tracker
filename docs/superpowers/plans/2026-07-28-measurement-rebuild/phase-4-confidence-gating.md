@@ -1,3 +1,8 @@
+> **Update 2026-07-30.** Rewritten task-by-task, combined with Phase 5, in
+> [`phase-4-5-combined-plan.md`](phase-4-5-combined-plan.md) — HANDOFF.md merged the two
+> sessions and this document's numbers were placeholders. This file is kept for its
+> reasoning and locked decisions, which the combined plan still follows.
+
 # Phase 4 — Rep-Level Confidence Gating
 
 > **Read `phase-2-measurement-primitives.md` first**, specifically its "Context

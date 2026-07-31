@@ -1,3 +1,5 @@
+**Completed: 2026-07-29**
+
 # Phase 3 — Rep Segmentation on the Depth Signal — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development

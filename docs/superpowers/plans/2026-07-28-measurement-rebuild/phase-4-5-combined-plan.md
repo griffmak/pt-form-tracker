@@ -1,3 +1,5 @@
+**Completed: 2026-07-30**
+
 # Phase 4 + 5 Combined Implementation Plan — Wiring, Calibration, Copy Honesty, Confidence Gating
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

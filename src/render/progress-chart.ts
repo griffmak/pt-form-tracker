@@ -103,15 +103,23 @@ function repSummary(
 }
 
 /** Renders honest, baseline-relative session text into a container. */
-export function renderProgressSummary(container: HTMLElement, summary: SessionSummary): void {
+export function renderProgressSummary(
+  container: HTMLElement,
+  summary: SessionSummary,
+  onRepSelect?: (repIndex: number) => void
+): void {
   const coveragePercent = Math.round(summary.coverageRate * 100);
 
+  const paragraph = document.createElement("p");
+  paragraph.className = "session-summary-text";
+
   if (summary.repCount === 0) {
-    container.textContent =
+    paragraph.textContent =
       `No complete reps detected this session. ` +
       `${coveragePercent}% of the session had a clear enough view of your hips and ` +
       `shoulders to measure depth — if that's low, move further back so your whole ` +
       `body is in frame and try again.`;
+    container.replaceChildren(paragraph);
     return;
   }
 
@@ -119,10 +127,11 @@ export function renderProgressSummary(container: HTMLElement, summary: SessionSu
   const repLabel = summary.repCount === 1 ? "1 rep" : `${summary.repCount} reps`;
 
   if (gradedReps.length === 0) {
-    container.textContent =
+    paragraph.textContent =
       `${repLabel} this session, but tracking wasn't clear enough at any of their ` +
       `bottoms to judge depth or lean — I couldn't see you well enough to grade them. ` +
       `${coveragePercent}% of the session had a clear view overall.`;
+    container.replaceChildren(paragraph);
     return;
   }
 
@@ -137,12 +146,61 @@ export function renderProgressSummary(container: HTMLElement, summary: SessionSu
   // statement on its own most common outcome.
   const ungradedClause = allGraded ? "" : " I couldn't see the rest well enough to judge.";
 
-  container.textContent =
+  paragraph.textContent =
     `${gradedLabel} graded this session.${ungradedClause} ` +
     `Hips dropped an average of ${avgDepth.toFixed(2)}x your standing trunk length at ` +
     `each graded rep's deepest point, with trunk lean averaging ` +
     `${formatSigned(avgLean)}° from your standing posture ` +
     `(${coveragePercent}% of the session had a clear view).`;
+
+  const streakStat = document.createElement("div");
+  streakStat.className = "session-streak-stat";
+  streakStat.textContent = `Longest clean streak: ${summary.streak}`;
+
+  const list = document.createElement("div");
+  list.className = "rep-list";
+  summary.reps.forEach((rep, index) => {
+    list.appendChild(renderRepRow(rep, index, onRepSelect));
+  });
+
+  container.replaceChildren(paragraph, streakStat, list);
+}
+
+function renderRepRow(rep: RepSummary, index: number, onRepSelect?: (repIndex: number) => void): HTMLElement {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = rep.unusual ? "rep-row rep-row--unusual" : "rep-row";
+
+  const number = document.createElement("span");
+  number.className = "rep-number";
+  number.textContent = `Rep ${index + 1}`;
+
+  const stats = document.createElement("span");
+  stats.className = "rep-stats";
+  stats.textContent = rep.graded
+    ? `${rep.bottomDepthRatio.toFixed(2)}x depth, ${formatSigned(rep.leanDeltaDegrees)}° lean`
+    : "not enough tracking to grade";
+
+  row.append(number, stats);
+
+  if (rep.unusual) {
+    const icon = document.createElement("span");
+    icon.className = "rep-flag-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "!";
+
+    const label = document.createElement("span");
+    label.className = "rep-flag-label";
+    label.textContent = "unusual";
+
+    row.append(icon, label);
+  }
+
+  if (onRepSelect) {
+    row.addEventListener("click", () => onRepSelect(index));
+  }
+
+  return row;
 }
 
 function average(values: number[]): number {

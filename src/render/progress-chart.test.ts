@@ -233,4 +233,81 @@ describe("renderProgressSummary", () => {
     expect(container.textContent).toContain("2 reps");
     expect(container.textContent!.toLowerCase()).not.toContain("couldn't see");
   });
+
+  test("renders a streak stat and a row per rep", () => {
+    const container = document.createElement("div");
+    renderProgressSummary(container, {
+      repCount: 2,
+      reps: [
+        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true, unusual: false, deviationFraction: 0.02, startIndex: 0, endIndex: 10 },
+        { bottomDepthRatio: 0.2, leanDeltaDegrees: 9.9, graded: true, unusual: true, deviationFraction: -0.6, startIndex: 11, endIndex: 20 }
+      ],
+      coverageRate: 0.97,
+      streak: 1,
+      worstRepIndex: 1
+    });
+
+    expect(container.querySelectorAll(".rep-row")).toHaveLength(2);
+    expect(container.textContent).toMatch(/streak/i);
+    expect(container.textContent).toContain("1");
+  });
+
+  test("marks a flagged rep with an icon and an 'unusual' text label, not color alone", () => {
+    const container = document.createElement("div");
+    renderProgressSummary(container, {
+      repCount: 1,
+      reps: [
+        { bottomDepthRatio: 0.2, leanDeltaDegrees: 9.9, graded: true, unusual: true, deviationFraction: -0.6, startIndex: 0, endIndex: 10 }
+      ],
+      coverageRate: 0.97,
+      streak: 0,
+      worstRepIndex: 0
+    });
+
+    const row = container.querySelector(".rep-row")!;
+    expect(row.classList.contains("rep-row--unusual")).toBe(true);
+    expect(row.querySelector(".rep-flag-icon")).not.toBeNull();
+    expect(row.textContent).toMatch(/unusual/i);
+  });
+
+  test("does not mark a clean rep as unusual", () => {
+    const container = document.createElement("div");
+    renderProgressSummary(container, {
+      repCount: 1,
+      reps: [
+        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true, unusual: false, deviationFraction: 0.02, startIndex: 0, endIndex: 10 }
+      ],
+      coverageRate: 0.97,
+      streak: 1,
+      worstRepIndex: null
+    });
+
+    const row = container.querySelector(".rep-row")!;
+    expect(row.classList.contains("rep-row--unusual")).toBe(false);
+    expect(row.querySelector(".rep-flag-icon")).toBeNull();
+  });
+
+  test("calls onRepSelect with the rep's index when a rep row is clicked", () => {
+    const container = document.createElement("div");
+    const selected: number[] = [];
+    renderProgressSummary(
+      container,
+      {
+        repCount: 2,
+        reps: [
+          { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true, unusual: false, deviationFraction: 0.02, startIndex: 0, endIndex: 10 },
+          { bottomDepthRatio: 0.2, leanDeltaDegrees: 9.9, graded: true, unusual: true, deviationFraction: -0.6, startIndex: 11, endIndex: 20 }
+        ],
+        coverageRate: 0.97,
+        streak: 1,
+        worstRepIndex: 1
+      },
+      (index) => selected.push(index)
+    );
+
+    const rows = container.querySelectorAll(".rep-row");
+    (rows[1] as HTMLElement).click();
+
+    expect(selected).toEqual([1]);
+  });
 });

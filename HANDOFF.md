@@ -3,14 +3,19 @@
 **Written:** 2026-07-29, at the end of the Phase 2 + Phase 3 session.
 **Updated:** 2026-07-30 — Phase 4 and Phase 5 were executed together this
 session, per the finalized `phase-4-5-combined-plan.md`. All six phases of the
-measurement rebuild are now shipped. What's left is a live camera smoke test
-(Griffin's action, not an agent's) and a design decision about what comes next
-(Phase 5b vs. the demo video).
-**Branch:** `measurement-rebuild` (pushed, in sync with origin — 24 commits
-total, 13 from this session).
-**Read next:** the "Next session" section immediately below. `corpus-manifest.md`
-is still the source for every measured constant, but nothing in the next
-session's scope requires re-deriving one.
+measurement rebuild are now shipped.
+**Updated again:** 2026-08-01 — Phase 5b + a full UI redesign are now fully
+spec'd (`brainstorms/2026-08-01-phase-5b-ui-redesign.md`) and planned
+(`docs/superpowers/plans/2026-08-01-phase-5b-ui-redesign.md`), ready to
+execute. Nothing from the new plan is implemented yet. **A claim in this
+file's 2026-07-30 sections below — that Phase 5b needs an added
+absolute-depth check — was found to be wrong** while writing the plan;
+`corpus-manifest.md` had already resolved this on 2026-07-29. See the
+correction note right after the phase table.
+**Branch:** `measurement-rebuild` (pushed, in sync with origin as of
+2026-07-30 — 24 commits total; the 2026-08-01 plan/brainstorm commits are
+docs-only, not yet pushed — check `git status` before assuming sync).
+**Read next:** the paste-able prompt immediately below.
 
 ---
 
@@ -19,32 +24,30 @@ session's scope requires re-deriving one.
 ```
 pt-form-tracker's measurement rebuild (Phases 0-5) is done and pushed to
 `measurement-rebuild` — 176/176 tests, tsc clean, build clean, forbidden-claims
-grep passed. Read HANDOFF.md's "Where we are in the phases" table below to
-confirm, then do the following in order.
+grep passed. Phase 5b + a full UI redesign are fully spec'd and planned as of
+2026-08-01 — nothing implemented yet.
 
-1. LIVE SMOKE TEST FIRST, WITH ME, BEFORE ANY NEW CODE. Start the dev server
-   (`npm run dev`) and I will calibrate (hold still ~5s), record a real set,
-   and read the summary in an actual browser with a real camera — no prior
-   session was able to do this, since it requires a physical camera. If
-   anything looks wrong (calibration never goes ready, the summary claims
-   something the forbidden-claims checklist forbids, reps miscount), stop and
-   debug that before touching Phase 5b — a shipped-but-broken live path is
-   worse than an unshipped one.
+1. Read `docs/superpowers/plans/2026-08-01-phase-5b-ui-redesign.md` in full.
+   It's a 10-task TDD plan: Tasks 1-4 wire the already-corpus-validated
+   deviation signal into per-rep flags/streak/worst-rep-index on
+   `SessionSummary`; Task 5 fixes a real frame-index misalignment bug between
+   `trunkSamples` and `worldLandmarksHistory` in `main.ts` and adds a
+   rep-scoped replay player; Tasks 6-7 build the session-summary rep list UI
+   (flag icon+label, streak stat, click-to-replay) and wire it into `main.ts`;
+   Tasks 8-10 are the visual redesign (design tokens/fonts, block-layout
+   restyle, responsive breakpoint). Also read
+   `brainstorms/2026-08-01-phase-5b-ui-redesign.md` for the design rationale
+   behind each decision if anything in the plan needs justifying.
 
-2. Once the smoke test passes, ask me which of these two tracks to take:
-   (a) Phase 5b — deviation-flag UI, streak, worst-rep replay. This needs its
-   own superpowers:brainstorming + superpowers:writing-plans pass before any
-   code, because the product promise ("we tell you when you're doing it
-   wrong," settled 2026-07-30) means the current relative-to-set-median
-   deviation signal is insufficient on its own — corpus-04-shallow (every rep
-   uniformly shallow) gets zero flags under it despite being wrong on every
-   rep. Design an added absolute-depth check before writing any Phase 5b task
-   plan; don't reuse the relative signal alone.
-   (b) Shoot the demo video's "after" footage per `docs/demo-video-plan.md`.
-   2 of 3 planned shots are available now (full-set recording with correct
-   rep count; a shallow set counted rather than dropped). The 3rd shot (a rep
-   flagged as unlike the others) is blocked on Phase 5b, so if that's the shot
-   Griffin wants, do 5b first.
+2. Execute the plan task by task, TDD, one commit per task — use
+   superpowers:subagent-driven-development or superpowers:executing-plans per
+   the plan's own header.
+
+3. Once the plan is fully executed and the app looks right in a real browser,
+   the live camera smoke test (Griffin, not Claude) is still outstanding from
+   the 2026-07-30 handoff and should happen before merging to main or
+   redeploying — a shipped-but-broken live path is worse than an unshipped
+   one.
 
 Hard constraints, unchanged: no runtime AI/API/LLM, deterministic geometry
 only; the tool must never claim anything about the spine, disc, or injury
@@ -70,13 +73,35 @@ than push through if the session is running long.
 | 2 | Planar measurement primitives + calibration | ✅ **DONE** 2026-07-29, 6 commits |
 | 3 | Rep segmentation on the depth signal | ✅ **DONE** 2026-07-29, 5 commits |
 | 4 + 5 | Confidence gating + wire the depth path into the live app (calibration UX, copy honesty) | ✅ **DONE** 2026-07-30 |
-| 5b | Deviation flag UI, streak, worst-rep replay | After 4+5; product promise now settled (see below), design not yet started |
+| 5b | Deviation flag UI, streak, worst-rep replay + full UI redesign | ✅ **SPEC'D + PLANNED** 2026-08-01 (`docs/superpowers/plans/2026-08-01-phase-5b-ui-redesign.md`, 10 tasks) — not yet executed |
 
 Phase index: `docs/superpowers/plans/2026-07-28-measurement-rebuild/README.md`
 Design spec: `docs/superpowers/specs/2026-07-28-measurement-rebuild-design.md`
+Phase 5b + redesign spec: `brainstorms/2026-08-01-phase-5b-ui-redesign.md`
+Phase 5b + redesign plan: `docs/superpowers/plans/2026-08-01-phase-5b-ui-redesign.md`
 
-**163/163 tests, `npx tsc --noEmit` clean, `npm run build` clean** (only the
-pre-existing chunk-size warning). Up from 62 at the end of Phase 1.
+**As of 2026-07-30: 176/176 tests, `npx tsc --noEmit` clean, `npm run build`
+clean.** (The 163/163 figure below this line is stale, from the end of Phase
+3 — kept for historical context in the sections below, not corrected in
+place.)
+
+**Correction, 2026-08-01:** the "Phase 4 + Phase 5 combined" and "Open
+findings" sections below both state that Phase 5b needs an added
+absolute-depth check because the relative-only deviation signal misses a
+uniformly-shallow set. **This is wrong.** `corpus-manifest.md`'s "Deviation
+signal" section (written 2026-07-29, the same day as the finding) already
+investigated `corpus-04-shallow` directly and concluded the opposite: a
+consistently shallow set correctly getting zero flags is **correct
+behavior**, not a gap — "consistently shallow is not the same as one rep
+unlike the others... whether shallow is good is a different question and not
+one this tool answers." No absolute-depth check was ever needed. Phase 5b's
+real scope, confirmed by reading `src/form-checker/rep-deviation.ts` and
+`src/main.ts` directly on 2026-08-01, is UI-wiring plus two real gaps found in
+the process: no per-rep replay selector exists (replay plays the whole
+session once) and no rep list exists in the session summary (one paragraph of
+averages) — both built fresh in the 2026-08-01 plan. The sections below are
+left as-is otherwise, since they're accurate history of what Phase 4+5 itself
+did.
 
 ## Phase 4 + Phase 5 combined — done 2026-07-30 (was: "Next session")
 

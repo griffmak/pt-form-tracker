@@ -3,6 +3,7 @@ import { buildDepthSeries } from "../form-checker/depth-series";
 import { detectDepthReps, type DepthRep } from "../form-checker/rep-segmentation";
 import { leanDelta } from "../form-checker/calibration";
 import { assessRepConfidence } from "../form-checker/rep-confidence";
+import { rollingDepthSeries, repDeviations, type RepDeviation } from "../form-checker/rep-deviation";
 
 /** One rep's depth and lean, both already expressed as deltas from the user's own baseline. */
 export interface RepSummary {
@@ -16,6 +17,18 @@ export interface RepSummary {
    * repCount, but its numbers must not be presented as a verdict.
    */
   graded: boolean;
+  /**
+   * Whether this rep's depth is unlike the rest of this set's (see
+   * rep-deviation.ts). Never a statement about injury risk — only that it
+   * differs from what this user did in the rest of this set.
+   */
+  unusual: boolean;
+  /** Signed fraction this rep's depth sits from the set median. Negative = shallower. */
+  deviationFraction: number;
+  /** First frame index of this rep, in the same index space as the session's trunkSamples/depth series. */
+  startIndex: number;
+  /** Last frame index of this rep, inclusive, same index space as startIndex. */
+  endIndex: number;
 }
 
 export interface SessionSummary {
@@ -50,7 +63,11 @@ export function summarizeSession(trunkSamples: (TrunkSample | null)[]): SessionS
   }
 
   const depthReps = detectDepthReps(series.values);
-  const reps: RepSummary[] = depthReps.map((rep) => repSummary(rep, trunkSamples, series.baseline));
+  const rolling = rollingDepthSeries(trunkSamples, series.baseline, series.readyAt);
+  const deviations = repDeviations(depthReps, rolling);
+  const reps: RepSummary[] = depthReps.map((rep, i) =>
+    repSummary(rep, trunkSamples, series.baseline, deviations[i])
+  );
 
   return { repCount: reps.length, reps, coverageRate };
 }
@@ -58,13 +75,18 @@ export function summarizeSession(trunkSamples: (TrunkSample | null)[]): SessionS
 function repSummary(
   rep: DepthRep,
   trunkSamples: (TrunkSample | null)[],
-  baseline: Parameters<typeof leanDelta>[1]
+  baseline: Parameters<typeof leanDelta>[1],
+  deviation: RepDeviation
 ): RepSummary {
   const bottomSample = trunkSamples[rep.bottomIndex];
   return {
     bottomDepthRatio: rep.bottomDepthRatio,
     leanDeltaDegrees: bottomSample ? leanDelta(bottomSample, baseline) : 0,
-    graded: assessRepConfidence(rep, trunkSamples) === "graded"
+    graded: assessRepConfidence(rep, trunkSamples) === "graded",
+    unusual: deviation.unusual,
+    deviationFraction: deviation.deviationFraction,
+    startIndex: rep.startIndex,
+    endIndex: rep.endIndex
   };
 }
 

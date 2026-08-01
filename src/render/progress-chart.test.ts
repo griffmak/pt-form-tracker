@@ -24,6 +24,30 @@ function trunkSamplesWithReps(reps: number, leanDegrees = 2): (TrunkSample | nul
   return out;
 }
 
+/** Same shape as trunkSamplesWithReps, but each rep gets its own depth. */
+function trunkSamplesWithVariedDepths(depths: number[], leanDegrees = 2): (TrunkSample | null)[] {
+  const still = (n: number) =>
+    Array.from({ length: n }, () => ({
+      leanDegrees,
+      hipY: 0.5,
+      trunkLength: 0.3,
+      minVisibility: 0.99
+    }));
+  const descent = (depth: number) =>
+    Array.from({ length: 30 }, (_, i) => ({
+      leanDegrees,
+      hipY: 0.5 + (depth * (i + 1)) / 30,
+      trunkLength: 0.3,
+      minVisibility: 0.99
+    }));
+  const out: (TrunkSample | null)[] = [...still(120)];
+  for (const depth of depths) {
+    const down = descent(depth);
+    out.push(...down, ...[...down].reverse(), ...still(30));
+  }
+  return out;
+}
+
 describe("summarizeSession", () => {
   test("reports no reps for an empty session", () => {
     const summary = summarizeSession([]);
@@ -94,6 +118,35 @@ describe("summarizeSession", () => {
     expect(summary.reps.filter((r) => r.graded)).toHaveLength(1);
     expect(summary.reps.filter((r) => !r.graded)).toHaveLength(1);
   });
+
+  test("flags a rep whose depth is far from the set median as unusual", () => {
+    // 0.18 matches trunkSamplesWithReps's own depth (see its descent() above) —
+    // three ordinary reps. 0.08 is verified (via detectDepthReps) to still cross
+    // rep-segmentation.ts's entry threshold, so it segments as a rep rather than
+    // vanishing entirely (0.05 does not clear that threshold and is never
+    // detected as a rep at all). Its deviation from the set median is (0.267 -
+    // 0.6) / 0.6 = -56%, well past the 30% UNUSUAL_REP_FRACTION threshold
+    // rep-deviation.ts documents.
+    const samples = trunkSamplesWithVariedDepths([0.18, 0.18, 0.18, 0.08]);
+    const summary = summarizeSession(samples);
+
+    expect(summary.repCount).toBe(4);
+    expect(summary.reps[3].unusual).toBe(true);
+    expect(summary.reps[3].deviationFraction).toBeLessThan(-0.5);
+    expect(summary.reps[0].unusual).toBe(false);
+    expect(summary.reps[0].deviationFraction).toBeCloseTo(0, 1);
+  });
+
+  test("reports each rep's frame range for later replay lookup", () => {
+    const samples = trunkSamplesWithReps(2);
+    const summary = summarizeSession(samples);
+
+    expect(summary.reps).toHaveLength(2);
+    for (const rep of summary.reps) {
+      expect(rep.endIndex).toBeGreaterThan(rep.startIndex);
+    }
+    expect(summary.reps[1].startIndex).toBeGreaterThan(summary.reps[0].endIndex);
+  });
 });
 
 describe("renderProgressSummary", () => {
@@ -111,8 +164,8 @@ describe("renderProgressSummary", () => {
     renderProgressSummary(container, {
       repCount: 2,
       reps: [
-        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true },
-        { bottomDepthRatio: 0.58, leanDeltaDegrees: -1.1, graded: true }
+        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true, unusual: false, deviationFraction: 0, startIndex: 0, endIndex: 1 },
+        { bottomDepthRatio: 0.58, leanDeltaDegrees: -1.1, graded: true, unusual: false, deviationFraction: 0, startIndex: 2, endIndex: 3 }
       ],
       coverageRate: 0.97
     });
@@ -128,8 +181,8 @@ describe("renderProgressSummary", () => {
     renderProgressSummary(container, {
       repCount: 2,
       reps: [
-        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true },
-        { bottomDepthRatio: 0.2, leanDeltaDegrees: 9.9, graded: false }
+        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true, unusual: false, deviationFraction: 0, startIndex: 0, endIndex: 1 },
+        { bottomDepthRatio: 0.2, leanDeltaDegrees: 9.9, graded: false, unusual: false, deviationFraction: 0, startIndex: 2, endIndex: 3 }
       ],
       coverageRate: 0.8
     });
@@ -143,8 +196,8 @@ describe("renderProgressSummary", () => {
     renderProgressSummary(container, {
       repCount: 2,
       reps: [
-        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true },
-        { bottomDepthRatio: 0.58, leanDeltaDegrees: -1.1, graded: true }
+        { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true, unusual: false, deviationFraction: 0, startIndex: 0, endIndex: 1 },
+        { bottomDepthRatio: 0.58, leanDeltaDegrees: -1.1, graded: true, unusual: false, deviationFraction: 0, startIndex: 2, endIndex: 3 }
       ],
       coverageRate: 0.97
     });

@@ -3,6 +3,7 @@ import { checkFrame, type PoseWorldLandmark } from "./form-checker/form-checker"
 import { drawOverlay } from "./render/live-overlay";
 import { ReplayView } from "./render/replay-view";
 import { summarizeSession, renderProgressSummary } from "./render/progress-chart";
+import { framesForRep, nextPlaybackFrame } from "./render/rep-player";
 import { assessFraming } from "./form-checker/framing-check";
 import { renderFramingReadout } from "./render/framing-readout";
 import { SessionStore, type SessionFrameRecord } from "./storage/session-store";
@@ -109,7 +110,7 @@ async function main() {
   await store.open();
   const sessionId = await store.startSession(exercise.id);
 
-  const worldLandmarksHistory: PoseWorldLandmark[][] = [];
+  const worldLandmarksHistory: (PoseWorldLandmark[] | null)[] = [];
 
   // Seeded (see the space-bar handler below) with a COPY of the trailing
   // calibrationBuffer window the live gate just accepted, not left empty.
@@ -248,9 +249,9 @@ async function main() {
 
     rawFrames.push({ t: Date.now(), lm: recordedLm });
     trunkSamples.push(trunk);
+    worldLandmarksHistory.push(landmarks ?? null);
 
     if (frameResult && landmarks) {
-      worldLandmarksHistory.push(landmarks);
       const record: SessionFrameRecord = {
         sessionId,
         timestamp: Date.now(),
@@ -303,6 +304,24 @@ async function main() {
         (angleSeries[rule.ruleName] ??= []).push(rule.evaluated ? rule.angleDegrees : null);
       }
     }
+    const replay = new ReplayView(replayContainer);
+    let replayTimer: ReturnType<typeof setInterval> | null = null;
+
+    function playFrames(frames: PoseWorldLandmark[][]): void {
+      if (replayTimer !== null) clearInterval(replayTimer);
+      let cursor = 0;
+      if (frames.length === 0) return;
+      replayTimer = setInterval(() => {
+        replay.showFrame(frames[cursor]);
+        const step = nextPlaybackFrame(cursor, frames.length);
+        cursor = step.index;
+        if (step.done && replayTimer !== null) {
+          clearInterval(replayTimer);
+          replayTimer = null;
+        }
+      }, 33);
+    }
+
     renderProgressSummary(progressContainer, summary);
     const ruleStats = buildRuleStats(frames);
     console.table(ruleStats);
@@ -324,16 +343,12 @@ async function main() {
       errors: capturedErrors
     });
 
-    const replay = new ReplayView(replayContainer);
-    let i = 0;
-    const replayInterval = setInterval(() => {
-      if (i >= worldLandmarksHistory.length) {
-        clearInterval(replayInterval);
-        return;
-      }
-      replay.showFrame(worldLandmarksHistory[i]);
-      i += 1;
-    }, 33);
+    const worstRep = summary.worstRepIndex !== null ? summary.reps[summary.worstRepIndex] : null;
+    if (worstRep) {
+      playFrames(framesForRep(worldLandmarksHistory, worstRep));
+    } else {
+      playFrames(worldLandmarksHistory.filter((f): f is PoseWorldLandmark[] => f !== null));
+    }
   });
 }
 

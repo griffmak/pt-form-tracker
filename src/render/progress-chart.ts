@@ -4,6 +4,8 @@ import { detectDepthReps, type DepthRep } from "../form-checker/rep-segmentation
 import { leanDelta } from "../form-checker/calibration";
 import { assessRepConfidence } from "../form-checker/rep-confidence";
 import { rollingDepthSeries, repDeviations, type RepDeviation } from "../form-checker/rep-deviation";
+import { longestCleanStreak } from "../form-checker/rep-streak";
+import { worstRepIndex } from "../form-checker/worst-rep";
 
 /** One rep's depth and lean, both already expressed as deltas from the user's own baseline. */
 export interface RepSummary {
@@ -42,6 +44,10 @@ export interface SessionSummary {
    * clear enough view to measure — a framing problem, not a form problem.
    */
   coverageRate: number;
+  /** Longest run of consecutive non-unusual reps in the set. 0 when repCount is 0. */
+  streak: number;
+  /** Index into `reps` of the rep with the largest deviation, or null if none is flagged. */
+  worstRepIndex: number | null;
 }
 
 /**
@@ -59,7 +65,7 @@ export function summarizeSession(trunkSamples: (TrunkSample | null)[]): SessionS
 
   const series = buildDepthSeries(trunkSamples);
   if (series === null) {
-    return { repCount: 0, reps: [], coverageRate };
+    return { repCount: 0, reps: [], coverageRate, streak: 0, worstRepIndex: null };
   }
 
   const depthReps = detectDepthReps(series.values);
@@ -69,7 +75,13 @@ export function summarizeSession(trunkSamples: (TrunkSample | null)[]): SessionS
     repSummary(rep, trunkSamples, series.baseline, deviations[i])
   );
 
-  return { repCount: reps.length, reps, coverageRate };
+  return {
+    repCount: reps.length,
+    reps,
+    coverageRate,
+    streak: longestCleanStreak(reps),
+    worstRepIndex: worstRepIndex(reps)
+  };
 }
 
 function repSummary(

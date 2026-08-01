@@ -147,12 +147,34 @@ describe("summarizeSession", () => {
     }
     expect(summary.reps[1].startIndex).toBeGreaterThan(summary.reps[0].endIndex);
   });
+
+  test("reports a streak and worst-rep index when a rep is flagged", () => {
+    const samples = trunkSamplesWithVariedDepths([0.18, 0.18, 0.18, 0.08]);
+    const summary = summarizeSession(samples);
+
+    expect(summary.streak).toBe(3);
+    expect(summary.worstRepIndex).toBe(3);
+  });
+
+  test("reports a full streak and no worst rep when nothing is flagged", () => {
+    const samples = trunkSamplesWithReps(3);
+    const summary = summarizeSession(samples);
+
+    expect(summary.streak).toBe(3);
+    expect(summary.worstRepIndex).toBeNull();
+  });
 });
 
 describe("renderProgressSummary", () => {
   test("states that no reps were detected instead of claiming a form score", () => {
     const container = document.createElement("div");
-    renderProgressSummary(container, { repCount: 0, reps: [], coverageRate: 0.14 });
+    renderProgressSummary(container, {
+      repCount: 0,
+      reps: [],
+      coverageRate: 0.14,
+      streak: 0,
+      worstRepIndex: null
+    });
 
     expect(container.textContent).not.toContain("% good form");
     expect(container.textContent!.toLowerCase()).toContain("no ");
@@ -167,7 +189,9 @@ describe("renderProgressSummary", () => {
         { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true, unusual: false, deviationFraction: 0, startIndex: 0, endIndex: 1 },
         { bottomDepthRatio: 0.58, leanDeltaDegrees: -1.1, graded: true, unusual: false, deviationFraction: 0, startIndex: 2, endIndex: 3 }
       ],
-      coverageRate: 0.97
+      coverageRate: 0.97,
+      streak: 0,
+      worstRepIndex: null
     });
 
     expect(container.textContent).toContain("2 reps");
@@ -184,7 +208,9 @@ describe("renderProgressSummary", () => {
         { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true, unusual: false, deviationFraction: 0, startIndex: 0, endIndex: 1 },
         { bottomDepthRatio: 0.2, leanDeltaDegrees: 9.9, graded: false, unusual: false, deviationFraction: 0, startIndex: 2, endIndex: 3 }
       ],
-      coverageRate: 0.8
+      coverageRate: 0.8,
+      streak: 0,
+      worstRepIndex: null
     });
 
     expect(container.textContent).toContain("1 of 2 reps");
@@ -199,7 +225,9 @@ describe("renderProgressSummary", () => {
         { bottomDepthRatio: 0.61, leanDeltaDegrees: 2.4, graded: true, unusual: false, deviationFraction: 0, startIndex: 0, endIndex: 1 },
         { bottomDepthRatio: 0.58, leanDeltaDegrees: -1.1, graded: true, unusual: false, deviationFraction: 0, startIndex: 2, endIndex: 3 }
       ],
-      coverageRate: 0.97
+      coverageRate: 0.97,
+      streak: 0,
+      worstRepIndex: null
     });
 
     expect(container.textContent).toContain("2 reps");

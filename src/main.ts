@@ -322,7 +322,10 @@ async function main() {
       }, 33);
     }
 
-    renderProgressSummary(progressContainer, summary);
+    renderProgressSummary(progressContainer, summary, (index) => {
+      const rep = summary.reps[index];
+      playFrames(framesForRep(worldLandmarksHistory, rep));
+    });
     const ruleStats = buildRuleStats(frames);
     console.table(ruleStats);
     await postTestArtifact({

@@ -5,6 +5,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PT Form Tracker</title>
     <style>
+      @font-face {
+        font-family: "Clash Display";
+        src: url("/fonts/ClashDisplay-Bold.woff2") format("woff2");
+        font-weight: 700;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Clash Display";
+        src: url("/fonts/ClashDisplay-Medium.woff2") format("woff2");
+        font-weight: 500;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Satoshi";
+        src: url("/fonts/Satoshi-Regular.woff2") format("woff2");
+        font-weight: 400;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Satoshi";
+        src: url("/fonts/Satoshi-Bold.woff2") format("woff2");
+        font-weight: 700;
+        font-display: swap;
+      }
+
+      :root {
+        --color-primary: #0284c7;
+        --color-primary-dark: #026aa3;
+        --color-accent: #f59e0b;
+        --color-bg: #f0f9ff;
+        --color-surface: #ffffff;
+        --color-text: #0c2536;
+        --color-text-muted: #4b6a7d;
+        --color-border: #cfe6f5;
+        --color-success-bg: #eef7ee;
+        --color-success-border: #cfe3cf;
+        --color-danger-bg: #fdeded;
+        --color-danger-border: #f3c9c9;
+
+        --font-heading: "Clash Display", sans-serif;
+        --font-body: "Satoshi", sans-serif;
+
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+
+        --radius-block: 12px;
+      }
+
       body {
         font-family: sans-serif;
         margin: 0;
